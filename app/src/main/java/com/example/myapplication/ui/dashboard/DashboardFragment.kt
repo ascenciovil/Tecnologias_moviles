@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -32,34 +34,119 @@ class DashboardFragment : Fragment() {
 
     private fun setupUI() {
         // Observar los datos del ViewModel
-        dashboardViewModel.titulo.observe(viewLifecycleOwner) { titulo ->
-            binding.textTitulo.text = titulo
-        }
-
         dashboardViewModel.nombre.observe(viewLifecycleOwner) { nombre ->
             binding.textNombre.text = nombre
+        }
+
+        dashboardViewModel.username.observe(viewLifecycleOwner) { username ->
+            binding.textUsername.text = username
+        }
+
+        dashboardViewModel.textoBoton.observe(viewLifecycleOwner) { textoBoton ->
+            binding.botonSeguir.text = textoBoton
+        }
+
+        dashboardViewModel.estaSiguiendo.observe(viewLifecycleOwner) { estaSiguiendo ->
+            // Cambiar el color del botón basado en el estado
+            if (estaSiguiendo) {
+                binding.botonSeguir.setBackgroundColor(0xFFE0E0E0.toInt()) // Gris cuando está siguiendo
+                binding.botonSeguir.setTextColor(0xFF000000.toInt()) // Texto negro
+            } else {
+                binding.botonSeguir.setBackgroundColor(0xFF2196F3.toInt()) // Azul cuando no está siguiendo
+                binding.botonSeguir.setTextColor(0xFFFFFFFF.toInt()) // Texto blanco
+            }
         }
 
         dashboardViewModel.descripcion.observe(viewLifecycleOwner) { descripcion ->
             binding.textDescripcion.text = descripcion
         }
 
-        dashboardViewModel.habilidades.observe(viewLifecycleOwner) { habilidades ->
-            setupHabilidadesList(habilidades)
+        dashboardViewModel.caracteristicasRutas.observe(viewLifecycleOwner) { caracteristicas ->
+            setupCaracteristicasList(caracteristicas)
+        }
+
+        dashboardViewModel.rutasPublicadas.observe(viewLifecycleOwner) { rutas ->
+            setupRutasList(rutas)
+        }
+
+        // Configurar el click listener del botón
+        binding.botonSeguir.setOnClickListener {
+            dashboardViewModel.alternarSeguir()
         }
     }
 
-    private fun setupHabilidadesList(habilidades: List<String>) {
-        val layoutHabilidades = binding.layoutHabilidades
-        layoutHabilidades.removeAllViews() // Limpiar vistas anteriores
+    private fun setupCaracteristicasList(caracteristicas: List<String>) {
+        val layoutCaracteristicas = binding.layoutCaracteristicas
+        layoutCaracteristicas.removeAllViews()
 
-        habilidades.forEach { habilidad ->
+        caracteristicas.forEach { caracteristica ->
             val textView = TextView(requireContext()).apply {
-                text = "• $habilidad"
-                textSize = 16f
+                text = "• $caracteristica"
+                textSize = 14f
+                setTextColor(0xFF333333.toInt())
                 setPadding(0, 4.dpToPx(), 0, 4.dpToPx())
             }
-            layoutHabilidades.addView(textView)
+            layoutCaracteristicas.addView(textView)
+        }
+    }
+
+    private fun setupRutasList(rutas: List<Ruta>) {
+        val layoutRutas = binding.layoutRutas
+        layoutRutas.removeAllViews()
+
+        rutas.forEach { ruta ->
+            // Contenedor principal de la ruta
+            val rutaLayout = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, 24.dpToPx())
+            }
+
+            // Fila superior con título y duración
+            val filaSuperior = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            // Título de la ruta
+            val tituloTextView = TextView(requireContext()).apply {
+                text = ruta.titulo
+                textSize = 16f
+                setTextColor(0xFF000000.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+
+            // Duración
+            val duracionTextView = TextView(requireContext()).apply {
+                text = ruta.duracion
+                textSize = 14f
+                setTextColor(0xFF666666.toInt())
+            }
+
+            filaSuperior.addView(tituloTextView)
+            filaSuperior.addView(duracionTextView)
+
+
+            rutaLayout.addView(filaSuperior)
+
+            // Descripción de la ruta - solo si no está vacía
+            if (ruta.descripcion.isNotEmpty()) {
+                val descripcionTextView = TextView(requireContext()).apply {
+                    text = ruta.descripcion
+                    textSize = 14f
+                    setTextColor(0xFF666666.toInt())
+                    setPadding(0, 4.dpToPx(), 0, 0)
+                }
+                rutaLayout.addView(descripcionTextView)
+            }
+
+            layoutRutas.addView(rutaLayout)
         }
     }
 

@@ -4,63 +4,123 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp"
+    android:background="#FFFFFF"
     tools:context=".ui.dashboard.DashboardFragment">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <!-- Título -->
-        <TextView
-            android:id="@+id/text_titulo"
+        <!-- Header del perfil -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAlignment="center"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="#2196F3"
-            android:layout_marginBottom="8dp"
-            tools:text="Desarrollador Android" />
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
 
-        <!-- Nombre -->
+            <TextView
+                android:id="@+id/text_nombre"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pablo"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#000000" />
+
+            <TextView
+                android:id="@+id/text_username"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@XxPablo2002xX"
+                android:textSize="16sp"
+                android:textColor="#666666"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Botón de Seguir/Siguiendo -->
+            <Button
+                android:id="@+id/boton_seguir"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Seguir"
+                android:textSize="14sp"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:layout_gravity="center"
+                android:layout_marginBottom="16dp"
+                android:background="@color/design_default_color_primary"
+                android:textColor="#FFFFFF" />
+
+            <!-- Línea divisoria -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginBottom="8dp" />
+        </LinearLayout>
+
+        <!-- Sección Sobre mí -->
         <TextView
-            android:id="@+id/text_nombre"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAlignment="center"
-            android:textSize="24sp"
+            android:text="Sobre mí"
+            android:textSize="20sp"
             android:textStyle="bold"
-            android:layout_marginBottom="16dp"
-            tools:text="Juan Pérez" />
+            android:textColor="#000000"
+            android:layout_marginBottom="8dp" />
 
-        <!-- Descripción -->
         <TextView
             android:id="@+id/text_descripcion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="16sp"
+            android:text="Descripción..."
+            android:textSize="14sp"
+            android:textColor="#333333"
             android:lineSpacingExtra="4dp"
-            android:layout_marginBottom="24dp"
-            tools:text="Descripción del perfil..." />
+            android:layout_marginBottom="16dp" />
 
-        <!-- Título de la sección de habilidades -->
+        <!-- Lista de características -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Habilidades:"
-            android:textSize="18sp"
+            android:text="En mis rutas encontramos:"
+            android:textSize="16sp"
             android:textStyle="bold"
+            android:textColor="#000000"
             android:layout_marginBottom="8dp" />
 
-        <!-- Lista de habilidades -->
         <LinearLayout
-            android:id="@+id/layout_habilidades"
+            android:id="@+id/layout_caracteristicas"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            tools:ignore="MissingConstraints" />
+            android:layout_marginBottom="24dp" />
+
+        <!-- Línea divisoria -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Sección Rutas publicadas -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Rutas publicadas ●"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:id="@+id/layout_rutas"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
 
     </LinearLayout>
 
