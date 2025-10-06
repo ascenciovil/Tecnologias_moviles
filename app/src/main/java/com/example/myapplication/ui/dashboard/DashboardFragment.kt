@@ -12,27 +12,61 @@ import com.example.myapplication.databinding.FragmentDashboardBinding
 class DashboardFragment : Fragment() {
 
     private var _binding: FragmentDashboardBinding? = null
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
+
+    private lateinit var dashboardViewModel: DashboardViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val dashboardViewModel =
-            ViewModelProvider(this).get(DashboardViewModel::class.java)
+        dashboardViewModel = ViewModelProvider(this).get(DashboardViewModel::class.java)
 
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        val textView: TextView = binding.textDashboard
-        dashboardViewModel.text.observe(viewLifecycleOwner) {
-            textView.text = it
-        }
+        setupUI()
         return root
+    }
+
+    private fun setupUI() {
+        // Observar los datos del ViewModel
+        dashboardViewModel.titulo.observe(viewLifecycleOwner) { titulo ->
+            binding.textTitulo.text = titulo
+        }
+
+        dashboardViewModel.nombre.observe(viewLifecycleOwner) { nombre ->
+            binding.textNombre.text = nombre
+        }
+
+        dashboardViewModel.descripcion.observe(viewLifecycleOwner) { descripcion ->
+            binding.textDescripcion.text = descripcion
+        }
+
+        dashboardViewModel.habilidades.observe(viewLifecycleOwner) { habilidades ->
+            setupHabilidadesList(habilidades)
+        }
+    }
+
+    private fun setupHabilidadesList(habilidades: List<String>) {
+        val layoutHabilidades = binding.layoutHabilidades
+        layoutHabilidades.removeAllViews() // Limpiar vistas anteriores
+
+        habilidades.forEach { habilidad ->
+            val textView = TextView(requireContext()).apply {
+                text = "• $habilidad"
+                textSize = 16f
+                setPadding(0, 4.dpToPx(), 0, 4.dpToPx())
+            }
+            layoutHabilidades.addView(textView)
+        }
+    }
+
+    // Función de extensión para convertir dp a píxeles
+    private fun Int.dpToPx(): Int {
+        val density = resources.displayMetrics.density
+        return (this * density).toInt()
     }
 
     override fun onDestroyView() {

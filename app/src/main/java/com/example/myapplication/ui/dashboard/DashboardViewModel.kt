@@ -6,8 +6,31 @@ import androidx.lifecycle.ViewModel
 
 class DashboardViewModel : ViewModel() {
 
-    private val _text = MutableLiveData<String>().apply {
-        value = "This is dashboard Fragment"
+    // Datos del perfil
+    private val _titulo = MutableLiveData<String>().apply {
+        value = "Desarrollador Android"
     }
-    val text: LiveData<String> = _text
+    val titulo: LiveData<String> = _titulo
+
+    private val _nombre = MutableLiveData<String>().apply {
+        value = "Juan Pérez"
+    }
+    val nombre: LiveData<String> = _nombre
+
+    private val _descripcion = MutableLiveData<String>().apply {
+        value = "Apasionado por el desarrollo móvil y las nuevas tecnologías. Me encanta crear aplicaciones que hagan la vida más fácil."
+    }
+    val descripcion: LiveData<String> = _descripcion
+
+    private val _habilidades = MutableLiveData<List<String>>().apply {
+        value = listOf(
+            "Kotlin",
+            "Java",
+            "Android SDK",
+            "Jetpack Compose",
+            "Firebase",
+            "Git"
+        )
+    }
+    val habilidades: LiveData<List<String>> = _habilidades
 }
