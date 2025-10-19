@@ -23,6 +23,7 @@
             android:layout_gravity="center_horizontal"
             android:padding="24dp"
             android:background="@drawable/custom_edittext"
+            android:id="@+id/loginLayout"
             >
             <TextView
                 android:layout_width="match_parent"
@@ -49,7 +50,7 @@
             <EditText
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:id="@+id/contraseña"
+                android:id="@+id/contrasena"
                 android:background="@drawable/custom_edittext"
                 android:layout_marginTop="20dp"
                 android:padding="8dp"
@@ -63,7 +64,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="10dp"
-                android:text="Guardar contraseña"
+                android:id="@+id/guardar"
+                android:text="Recuerdame"
                 android:textColor="@color/purple_500"
                 />
 
@@ -87,5 +89,98 @@
                 app:cornerRadius="20dp"/>
 
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+
+
+
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_gravity="center_horizontal"
+                    android:padding="24dp"
+                    android:background="@drawable/custom_edittext"
+                    android:visibility="gone"
+                    android:id="@+id/registerLayout"
+                    >
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Registro"
+                        android:id="@+id/registroText"
+                        android:textSize="36sp"
+                        android:textAlignment="center"
+                        android:textStyle="bold"
+                        android:textColor="@color/purple_500"/>
+
+                    <EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:id="@+id/usernameRegistro"
+                        android:background="@drawable/custom_edittext"
+                        android:layout_marginTop="40dp"
+                        android:padding="8dp"
+                        android:hint="Correo"
+                        android:drawableLeft="@drawable/baseline_person_24"
+                        android:textColor="@color/purple_500"
+                        android:drawablePadding="8dp"/>
+
+                    <EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:id="@+id/userRegistro"
+                        android:background="@drawable/custom_edittext"
+                        android:layout_marginTop="20dp"
+                        android:padding="8dp"
+                        android:hint="Nombre de usuario"
+                        android:drawableLeft="@drawable/baseline_person_24"
+                        android:textColor="@color/purple_500"
+                        android:drawablePadding="8dp"/>
+
+                    <EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:id="@+id/contrasenaRegistro"
+                        android:background="@drawable/custom_edittext"
+                        android:layout_marginTop="20dp"
+                        android:padding="8dp"
+                        android:inputType="textPassword"
+                        android:hint="Contraseña"
+                        android:drawableLeft="@drawable/baseline_lock_24"
+                        android:textColor="@color/purple_500"
+                        android:drawablePadding="8dp"/>
+                    <EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:id="@+id/contrasenaConfirma"
+                        android:background="@drawable/custom_edittext"
+                        android:layout_marginTop="20dp"
+                        android:padding="8dp"
+                        android:inputType="textPassword"
+                        android:hint="Confirmar contraseña"
+                        android:drawableLeft="@drawable/baseline_lock_24"
+                        android:textColor="@color/purple_500"
+                        android:drawablePadding="8dp"/>
+
+                    <Button
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="20dp"
+                        android:text="Registrarme"
+                        android:id="@+id/RegistroButton"
+                        android:backgroundTint="@color/purple_500"
+                        android:textSize="18sp"
+                        app:cornerRadius="20dp"/>
+                    <Button
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:text="Volver"
+                        android:id="@+id/volverButton"
+                        android:backgroundTint="@color/white"
+                        android:textSize="18sp"
+                        android:textColor="@color/purple_500"
+                        app:cornerRadius="20dp"/>
+
+                </LinearLayout>
+        </androidx.cardview.widget.CardView>
 </LinearLayout>
