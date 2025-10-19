@@ -64,7 +64,7 @@ class LoginActivity : AppCompatActivity(){
                 Toast.makeText(this, "Login fallido", Toast.LENGTH_SHORT).show()
             }
         })
-
+        //cambiar de vista
         binding.registerButton.setOnClickListener {
             binding.loginLayout.visibility = View.GONE
             binding.registerLayout.visibility = View.VISIBLE
