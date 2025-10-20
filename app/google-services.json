@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "907442326793",
+    "project_id": "waw-app-7977a",
+    "storage_bucket": "waw-app-7977a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:907442326793:android:960e56e34cd83ebdde97d8",
+        "android_client_info": {
+          "package_name": "com.example.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6dsyhnLkcBGuap5CmwZot9Hd96lLuYcQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
