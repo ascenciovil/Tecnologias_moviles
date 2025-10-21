@@ -1,23 +1,42 @@
 package com.example.myapplication.ui.home
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.platform.ComposeView
+import android.view.ViewGroup
+import android.widget.TextView
 import androidx.fragment.app.Fragment
-import com.example.myapplication.R
-import com.example.myapplication.navegacion.AppNav
+import androidx.lifecycle.ViewModelProvider
+import com.example.myapplication.databinding.FragmentHomeBinding
 
-class HomeFragment : Fragment(R.layout.fragment_home) {
+class HomeFragment : Fragment() {
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    private var _binding: FragmentHomeBinding? = null
 
-        val composeView = view.findViewById<ComposeView>(R.id.home_compose_view)
-        composeView.setContent {
-            MaterialTheme {
-                AppNav()
-            }
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        val homeViewModel =
+            ViewModelProvider(this).get(HomeViewModel::class.java)
+
+        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        val root: View = binding.root
+
+        val textView: TextView = binding.textHome
+        homeViewModel.text.observe(viewLifecycleOwner) {
+            textView.text = it
         }
+        return root
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

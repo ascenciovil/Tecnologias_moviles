@@ -4,29 +4,32 @@ package com.example.myapplication.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.compose.ui.platform.ComposeView;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.viewbinding.ViewBinding;
+import androidx.viewbinding.ViewBindings;
 import com.example.myapplication.R;
 import java.lang.NullPointerException;
 import java.lang.Override;
+import java.lang.String;
 
 public final class FragmentHomeBinding implements ViewBinding {
   @NonNull
-  private final ComposeView rootView;
+  private final ConstraintLayout rootView;
 
   @NonNull
-  public final ComposeView homeComposeView;
+  public final TextView textHome;
 
-  private FragmentHomeBinding(@NonNull ComposeView rootView, @NonNull ComposeView homeComposeView) {
+  private FragmentHomeBinding(@NonNull ConstraintLayout rootView, @NonNull TextView textHome) {
     this.rootView = rootView;
-    this.homeComposeView = homeComposeView;
+    this.textHome = textHome;
   }
 
   @Override
   @NonNull
-  public ComposeView getRoot() {
+  public ConstraintLayout getRoot() {
     return rootView;
   }
 
@@ -47,12 +50,19 @@ public final class FragmentHomeBinding implements ViewBinding {
 
   @NonNull
   public static FragmentHomeBinding bind(@NonNull View rootView) {
-    if (rootView == null) {
-      throw new NullPointerException("rootView");
+    // The body of this method is generated in a way you would not otherwise write.
+    // This is done to optimize the compiled bytecode for size and performance.
+    int id;
+    missingId: {
+      id = R.id.text_home;
+      TextView textHome = ViewBindings.findChildViewById(rootView, id);
+      if (textHome == null) {
+        break missingId;
+      }
+
+      return new FragmentHomeBinding((ConstraintLayout) rootView, textHome);
     }
-
-    ComposeView homeComposeView = (ComposeView) rootView;
-
-    return new FragmentHomeBinding((ComposeView) rootView, homeComposeView);
+    String missingId = rootView.getResources().getResourceName(id);
+    throw new NullPointerException("Missing required view with ID: ".concat(missingId));
   }
 }
