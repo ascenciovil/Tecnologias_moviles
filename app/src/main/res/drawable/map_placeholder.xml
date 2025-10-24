@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Fondo base -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#DDE8F0"/> <!-- azul clarito tipo mapa -->
+        </shape>
+    </item>
+
+    <!-- Líneas diagonales simulando calles -->
+    <item>
+        <shape android:shape="rectangle">
+            <size android:width="24dp" android:height="24dp"/>
+            <stroke android:width="1dp" android:color="#AAC0C0C0"/>
+        </shape>
+    </item>
+
+</layer-list>
