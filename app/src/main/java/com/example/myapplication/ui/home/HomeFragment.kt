@@ -33,7 +33,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var recording = false
-    private val rutaCoords = mutableListOf<Map<String, Double>>()
+    private val rutaCoords = mutableListOf<LatLng>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -133,8 +133,9 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
             override fun onLocationResult(result: LocationResult) {
                 if (recording) {
                     for (location in result.locations) {
-                        val point = mapOf("lat" to location.latitude, "lng" to location.longitude)
+                        val point = LatLng(location.latitude, location.longitude)
                         rutaCoords.add(point)
+
                     }
                 }
             }
