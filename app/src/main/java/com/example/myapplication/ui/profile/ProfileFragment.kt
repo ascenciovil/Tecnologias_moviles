@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.example.myapplication.R
@@ -54,6 +55,11 @@ class ProfileFragment : Fragment() {
 
         profileViewModel.rutasPublicadas.observe(viewLifecycleOwner) { rutas ->
             setupRutasList(rutas)
+        }
+
+        // Nuevo: Observar logros
+        profileViewModel.logros.observe(viewLifecycleOwner) { logros ->
+            setupLogrosList(logros)
         }
 
         profileViewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
@@ -121,6 +127,7 @@ class ProfileFragment : Fragment() {
                 val rutaCard = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
+                    background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
@@ -177,6 +184,107 @@ class ProfileFragment : Fragment() {
 
                 layoutRutas.addView(rutaCard)
             }
+        }
+    }
+
+    // Nuevo: Configurar la lista de logros
+    private fun setupLogrosList(logros: List<Logro>) {
+        val layoutLogros = binding.layoutLogros
+        layoutLogros.removeAllViews()
+
+        if (logros.isEmpty()) {
+            val textView = TextView(requireContext()).apply {
+                text = "Aún no tienes logros desbloqueados"
+                textSize = 15f
+                setTextColor(0xFF666666.toInt())
+                setPadding(0, 24.dpToPx(), 0, 0)
+                gravity = android.view.Gravity.CENTER
+                setLineSpacing(1.2f, 1.2f)
+            }
+            layoutLogros.addView(textView)
+        } else {
+            logros.forEachIndexed { index, logro ->
+                val logroCard = createLogroCard(logro, index)
+                layoutLogros.addView(logroCard)
+            }
+        }
+    }
+
+    // Nuevo: Crear tarjeta de logro individual
+    private fun createLogroCard(logro: Logro, index: Int): LinearLayout {
+        return LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                if (index > 0) {
+                    topMargin = 8.dpToPx()
+                }
+            }
+            background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
+
+            // Icono del logro
+            val iconoTextView = TextView(requireContext()).apply {
+                text = logro.icono
+                textSize = 24f
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginEnd = 16.dpToPx()
+                }
+            }
+
+            // Información del logro
+            val infoLayout = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+
+            val nombreTextView = TextView(requireContext()).apply {
+                text = logro.nombre
+                textSize = 16f
+                setTextColor(if (logro.obtenido) 0xFF1A1A1A.toInt() else 0xFF888888.toInt())
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+
+            val descripcionTextView = TextView(requireContext()).apply {
+                text = logro.descripcion
+                textSize = 14f
+                setTextColor(if (logro.obtenido) 0xFF666666.toInt() else 0xFFAAAAAA.toInt())
+                setPadding(0, 4.dpToPx(), 0, 0)
+            }
+
+            infoLayout.addView(nombreTextView)
+            infoLayout.addView(descripcionTextView)
+
+            // Estado del logro
+            val estadoTextView = TextView(requireContext()).apply {
+                text = if (logro.obtenido) "✓" else "🔒"
+                textSize = 18f
+                setTextColor(if (logro.obtenido) 0xFF4285F4.toInt() else 0xFFCCCCCC.toInt())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = 16.dpToPx()
+                }
+            }
+
+            // Aplicar efecto de deshabilitado si no está obtenido
+            if (!logro.obtenido) {
+                alpha = 0.6f
+            }
+
+            addView(iconoTextView)
+            addView(infoLayout)
+            addView(estadoTextView)
         }
     }
 
