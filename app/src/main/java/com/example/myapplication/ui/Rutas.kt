@@ -5,20 +5,27 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.google.android.material.card.MaterialCardView
-import android.widget.TextView
+import com.google.firebase.firestore.FirebaseFirestore
 
 class RutasFragment : Fragment() {
 
-    private val rutas = listOf(
-        Ruta("Ruta del Parque Central", "5 km", "Ideal para caminar o trotar."),
-        Ruta("Ruta del Río", "7 km", "Paisajes hermosos junto al río."),
-        Ruta("Ruta Urbana", "3 km", "Recorrido rápido por el centro.")
+    private lateinit var recyclerView: RecyclerView
+    private val db = FirebaseFirestore.getInstance()
+    private val rutasList = mutableListOf<Ruta>()
+    private lateinit var adapter: RutasAdapter
+
+    data class Ruta(
+        val nombre: String = "",
+        val autor: String = "",
+        val rating: Double = 0.0,
+        val idRuta: String = ""
     )
 
     override fun onCreateView(
@@ -27,19 +34,54 @@ class RutasFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_rutas, container, false)
 
-        val recyclerView = view.findViewById<RecyclerView>(R.id.recycler_rutas)
+        recyclerView = view.findViewById(R.id.recycler_rutas)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
-        recyclerView.adapter = RutasAdapter(rutas) { ruta ->
-            // Cuando se toca una ruta, abre la activity de detalle
+
+        adapter = RutasAdapter(rutasList) { ruta ->
             val intent = Intent(requireContext(), VistaRuta::class.java)
-            intent.putExtra("nombreRuta", ruta.nombre)
+            intent.putExtra("ruta_id", ruta.idRuta)
             startActivity(intent)
         }
+        recyclerView.adapter = adapter
+
+        cargarRutas()
 
         return view
     }
 
-    data class Ruta(val nombre: String, val distancia: String, val descripcion: String)
+    private fun cargarRutas() {
+        db.collection("Rutas").get()
+            .addOnSuccessListener { result ->
+                rutasList.clear()
+
+                for (doc in result) {
+                    val nombre = doc.getString("nombre") ?: "Sin nombre"
+                    val rating = doc.getDouble("rating") ?: 0.0
+                    val idUsuario = doc.getString("id_usuario") ?: ""
+                    val idRuta = doc.id
+
+                    if (idUsuario.isNotEmpty()) {
+                        db.collection("Usuarios").document(idUsuario).get()
+                            .addOnSuccessListener { userDoc ->
+                                val autor = userDoc.getString("nombre_usuario") ?: "Desconocido"
+
+                                rutasList.add(
+                                    Ruta(
+                                        nombre = nombre,
+                                        autor = autor,
+                                        rating = rating,
+                                        idRuta = idRuta
+                                    )
+                                )
+                                adapter.notifyDataSetChanged()
+                            }
+                    }
+                }
+            }
+            .addOnFailureListener {
+                // En caso de error al cargar rutas
+            }
+    }
 
     class RutasAdapter(
         private val rutas: List<Ruta>,
@@ -49,8 +91,8 @@ class RutasFragment : Fragment() {
         class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
             val card: MaterialCardView = view.findViewById(R.id.card_ruta)
             val nombre: TextView = view.findViewById(R.id.tv_nombre_ruta)
-            val distancia: TextView = view.findViewById(R.id.tv_distancia_ruta)
-            val descripcion: TextView = view.findViewById(R.id.tv_desc_ruta)
+            val autor: TextView = view.findViewById(R.id.tv_autor_ruta)
+            val rating: TextView = view.findViewById(R.id.tv_rating_ruta)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -62,8 +104,8 @@ class RutasFragment : Fragment() {
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val ruta = rutas[position]
             holder.nombre.text = ruta.nombre
-            holder.distancia.text = ruta.distancia
-            holder.descripcion.text = ruta.descripcion
+            holder.autor.text = "Por: ${ruta.autor}"
+            holder.rating.text = "⭐ ${ruta.rating}"
             holder.card.setOnClickListener { onClick(ruta) }
         }
 
