@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -127,14 +128,14 @@
                 android:text="Cancelar"
                 android:backgroundTint="@color/white"
                 android:textColor="@color/purple_500"
-                android:id="@+id/subirRuta"/>
+                android:id="@+id/cancelar"/>
             <Button
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginLeft="10dp"
                 android:layout_weight="1"
                 android:text="Subir"
-                android:id="@+id/cancelar"/>
+                android:id="@+id/subirRuta"/>
         </LinearLayout>
 
     </androidx.cardview.widget.CardView>
