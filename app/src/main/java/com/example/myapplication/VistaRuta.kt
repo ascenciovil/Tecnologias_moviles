@@ -1,6 +1,5 @@
 package com.example.myapplication
 
-import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.TextView
@@ -9,31 +8,42 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.firestore.FirebaseFirestore
 
 class VistaRuta : AppCompatActivity() {
+
+    // 🔧 Referencias que necesitamos después en la carga de datos
+    private lateinit var toolbar: MaterialToolbar
+    private lateinit var btnSeguir: MaterialButton
+    private lateinit var btnFotos: MaterialButton
+    private lateinit var btnComentarios: MaterialButton
+    private lateinit var tvDescription: TextView
+    private lateinit var imgMap: ImageView
+
+    private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_vista_ruta)
 
         // 🧭 Referencias a vistas
-        val toolbar = findViewById<MaterialToolbar>(R.id.topAppBar)
-        val btnSeguir = findViewById<MaterialButton>(R.id.btn_seguir_ruta)
-        val btnFotos = findViewById<MaterialButton>(R.id.btn_ver_fotos)
-        val btnComentarios = findViewById<MaterialButton>(R.id.btn_ver_comentarios)
-        val tvDescription = findViewById<TextView>(R.id.tv_description)
-        val imgMap = findViewById<ImageView>(R.id.img_map_placeholder)
+        toolbar = findViewById(R.id.topAppBar)
+        btnSeguir = findViewById(R.id.btn_seguir_ruta)
+        btnFotos = findViewById(R.id.btn_ver_fotos)
+        btnComentarios = findViewById(R.id.btn_ver_comentarios)
+        tvDescription = findViewById(R.id.tv_description)
+        imgMap = findViewById(R.id.img_map_placeholder)
 
-        // 🏷️ Configurar título de la ruta (por ahora simulado)
-        val nombreRuta = "Ruta del Parque Central"
-        toolbar.title = nombreRuta
+        // 🔹 Obtener ID de la ruta desde el Intent
+        val rutaId = intent.getStringExtra("ruta_id")
+        if (rutaId == null) {
+            Toast.makeText(this, "Error: ID de ruta no recibido", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
-        // 🏃‍♂️ Descripción simulada
-        val descripcion = """
-            Esta ruta recorre el Parque Central completo, ideal para caminar o trotar.
-            Tiene una distancia aproximada de 5 km y cuenta con zonas verdes y senderos.
-        """.trimIndent()
-        tvDescription.text = descripcion
+        // 📥 Cargar datos reales desde Firestore
+        cargarDatosRuta(rutaId)
 
         // 🔙 Acción del botón de retroceso (flecha en el top bar)
         toolbar.setNavigationOnClickListener {
@@ -42,8 +52,11 @@ class VistaRuta : AppCompatActivity() {
 
         // ▶️ Botón "Seguir ruta" (placeholder)
         btnSeguir.setOnClickListener { view ->
-            Snackbar.make(view, "Iniciando seguimiento (no implementado)...", Snackbar.LENGTH_SHORT).show()
-
+            Snackbar.make(
+                view,
+                "Iniciando seguimiento (no implementado)...",
+                Snackbar.LENGTH_SHORT
+            ).show()
         }
 
         // 🖼️ Botón "Ver fotos"
@@ -53,12 +66,45 @@ class VistaRuta : AppCompatActivity() {
 
         // 💬 Botón "Ver comentarios"
         btnComentarios.setOnClickListener {
-            Toast.makeText(this, "Mostrando comentarios (no implementado)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Mostrando comentarios (no implementado)", Toast.LENGTH_SHORT)
+                .show()
         }
 
         // 🗺️ Click en el mapa (por ahora muestra un Toast)
         imgMap.setOnClickListener {
             Toast.makeText(this, "Mapa ampliado (en desarrollo)", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun cargarDatosRuta(rutaId: String) {
+        db.collection("Rutas").document(rutaId)
+            .get()
+            .addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    Toast.makeText(this, "La ruta no existe", Toast.LENGTH_SHORT).show()
+                    finish()
+                    return@addOnSuccessListener
+                }
+
+                // Campos según tu esquema de Firestore
+                val nombre = doc.getString("nombre") ?: "Ruta sin nombre"
+                val descripcion = doc.getString("descripcion") ?: "Sin descripción"
+
+                // Si quieres luego puedes sacar rating, coordenadas, imágenes, etc.
+                // val ratingNumber = doc.get("rating") as? Number
+                // val rating = ratingNumber?.toDouble() ?: 0.0
+                // val coords = doc.get("coordenadas") as? List<GeoPoint> ?: emptyList()
+
+                toolbar.title = nombre
+                tvDescription.text = descripcion
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(
+                    this,
+                    "Error al cargar la ruta: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                finish()
+            }
     }
 }

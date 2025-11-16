@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -21,6 +22,7 @@ class RutasFragment : Fragment() {
     private val rutasList = mutableListOf<Ruta>()
     private lateinit var adapter: RutasAdapter
 
+    // Modelo para mostrar la tarjeta
     data class Ruta(
         val nombre: String = "",
         val autor: String = "",
@@ -38,6 +40,7 @@ class RutasFragment : Fragment() {
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
         adapter = RutasAdapter(rutasList) { ruta ->
+            // Al hacer click, abrimos VistaRuta pasando el ID del documento
             val intent = Intent(requireContext(), VistaRuta::class.java)
             intent.putExtra("ruta_id", ruta.idRuta)
             startActivity(intent)
@@ -56,14 +59,20 @@ class RutasFragment : Fragment() {
 
                 for (doc in result) {
                     val nombre = doc.getString("nombre") ?: "Sin nombre"
-                    val rating = doc.getDouble("rating") ?: 0.0
-                    val idUsuario = doc.getString("id_usuario") ?: ""
+
+                    // rating puede venir como Long o Double → mejor usar Number
+                    val ratingNumber = doc.get("rating") as? Number
+                    val rating = ratingNumber?.toDouble() ?: 0.0
+
+                    // ⚠️ En tu BD el campo es "userId", no "id_usuario"
+                    val idUsuario = doc.getString("userId") ?: ""
                     val idRuta = doc.id
 
                     if (idUsuario.isNotEmpty()) {
                         db.collection("Usuarios").document(idUsuario).get()
                             .addOnSuccessListener { userDoc ->
-                                val autor = userDoc.getString("nombre_usuario") ?: "Desconocido"
+                                val autor =
+                                    userDoc.getString("nombre_usuario") ?: "Desconocido"
 
                                 rutasList.add(
                                     Ruta(
@@ -75,11 +84,38 @@ class RutasFragment : Fragment() {
                                 )
                                 adapter.notifyDataSetChanged()
                             }
+                            .addOnFailureListener {
+                                // Si falla la carga del usuario igual mostramos la ruta
+                                rutasList.add(
+                                    Ruta(
+                                        nombre = nombre,
+                                        autor = "Desconocido",
+                                        rating = rating,
+                                        idRuta = idRuta
+                                    )
+                                )
+                                adapter.notifyDataSetChanged()
+                            }
+                    } else {
+                        // Si no tiene userId, mostramos sin autor
+                        rutasList.add(
+                            Ruta(
+                                nombre = nombre,
+                                autor = "Desconocido",
+                                rating = rating,
+                                idRuta = idRuta
+                            )
+                        )
+                        adapter.notifyDataSetChanged()
                     }
                 }
             }
-            .addOnFailureListener {
-                // En caso de error al cargar rutas
+            .addOnFailureListener { e ->
+                Toast.makeText(
+                    requireContext(),
+                    "Error al cargar rutas: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
     }
 
