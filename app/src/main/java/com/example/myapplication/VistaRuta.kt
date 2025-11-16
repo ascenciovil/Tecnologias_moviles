@@ -31,6 +31,10 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var tvDescription: TextView
     private lateinit var tvDistanceLabel: TextView
 
+    private lateinit var tvAutorRuta: TextView
+    private lateinit var tvRatingRuta: TextView
+
+
     // 🔧 Firebase / mapa
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private var rutaId: String? = null
@@ -51,6 +55,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         btnComentarios = findViewById(R.id.btn_ver_comentarios)
         tvDescription = findViewById(R.id.tv_description)
         tvDistanceLabel = findViewById(R.id.tv_distance_label)
+
+        tvAutorRuta = findViewById(R.id.tv_autor_ruta)
+        tvRatingRuta = findViewById(R.id.tv_rating_ruta)
 
         // 🔹 Obtener ID de la ruta desde el Intent
         rutaId = intent.getStringExtra("ruta_id")
@@ -115,16 +122,19 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 val nombre = doc.getString("nombre") ?: "Ruta sin nombre"
                 val descripcion = doc.getString("descripcion") ?: "Sin descripción"
 
-                // coordenadas puede venir como List<GeoPoint> o List<Map<*, *>>
+                // rating: puede venir como Long o Double
+                val ratingNumber = doc.get("rating") as? Number
+                val rating = ratingNumber?.toDouble() ?: 0.0
+
+                // userId para buscar el autor
+                val userId = doc.getString("userId") ?: ""
+
+                // coordenadas...
                 coordenadasRuta = (doc.get("coordenadas") as? List<*>)
                     ?.mapNotNull { value ->
                         when (value) {
-                            is GeoPoint -> {
-                                // Caso 1: ya es GeoPoint
-                                value
-                            }
+                            is GeoPoint -> value
                             is Map<*, *> -> {
-                                // Caso 2: viene como {latitude: x, longitude: y}
                                 val lat = (value["latitude"] as? Number)?.toDouble()
                                 val lng = (value["longitude"] as? Number)?.toDouble()
                                 if (lat != null && lng != null) GeoPoint(lat, lng) else null
@@ -141,6 +151,22 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
                 toolbar.title = nombre
                 tvDescription.text = descripcion
+
+                tvRatingRuta.text = "⭐ ${String.format(Locale.getDefault(), "%.1f", rating)}"
+
+                if (userId.isNotEmpty()) {
+                    db.collection("Usuarios").document(userId)
+                        .get()
+                        .addOnSuccessListener { userDoc ->
+                            val autor = userDoc.getString("nombre_usuario") ?: "Autor desconocido"
+                            tvAutorRuta.text = "Autor: $autor"
+                        }
+                        .addOnFailureListener {
+                            tvAutorRuta.text = "Autor: desconocido"
+                        }
+                } else {
+                    tvAutorRuta.text = "Autor: desconocido"
+                }
 
                 // Actualizar etiqueta de distancia
                 actualizarDistanciaLabel()
