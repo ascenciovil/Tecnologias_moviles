@@ -15,12 +15,62 @@
         android:layout_gravity="center"
         android:visibility="gone" />
 
+    <!-- NUEVO: Indicador offline -->
+    <LinearLayout
+        android:id="@+id/offlineIndicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF9C4"
+        android:padding="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        android:elevation="4dp">
+
+        <TextView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:text="📶"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginEnd="12dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Estás trabajando sin conexión"
+            android:textColor="#8D6E00"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/offlineProgressBar"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="Reintentar"
+            android:textSize="12sp"
+            android:textColor="#8D6E00"
+            android:background="@drawable/button_offline_retry"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+
+    </LinearLayout>
+
     <!-- ScrollView con contenido principal -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
-        android:background="#F8F9FA">
+        android:background="#F8F9FA"
+        android:layout_marginTop="0dp">
 
         <LinearLayout
             android:id="@+id/contentLayout"

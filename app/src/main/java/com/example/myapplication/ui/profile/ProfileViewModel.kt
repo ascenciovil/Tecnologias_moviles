@@ -10,7 +10,7 @@ import java.util.Locale
 class ProfileViewModel : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
+    private val db = FirebaseFirestore.getInstance() // Ya está configurado offline desde LoginActivity
 
     // Datos del usuario actual
     private val _nombre = MutableLiveData<String>().apply {
@@ -38,7 +38,7 @@ class ProfileViewModel : ViewModel() {
     }
     val rutasPublicadas: LiveData<List<Ruta>> = _rutasPublicadas
 
-    // Nuevo: Logros del usuario
+    // Logros del usuario
     private val _logros = MutableLiveData<List<Logro>>().apply {
         value = emptyList()
     }
@@ -49,7 +49,18 @@ class ProfileViewModel : ViewModel() {
     }
     val isLoading: LiveData<Boolean> = _isLoading
 
-    // Cargar datos del usuario desde Firestore
+    // Nuevo: Estados para manejar conexión
+    private val _isOnline = MutableLiveData<Boolean>().apply {
+        value = true
+    }
+    val isOnline: LiveData<Boolean> = _isOnline
+
+    private val _showOfflineMessage = MutableLiveData<Boolean>().apply {
+        value = false
+    }
+    val showOfflineMessage: LiveData<Boolean> = _showOfflineMessage
+
+    // Cargar datos del usuario desde Firestore (con soporte offline mejorado)
     fun cargarDatosUsuario() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -59,36 +70,49 @@ class ProfileViewModel : ViewModel() {
                 .get()
                 .addOnSuccessListener { document ->
                     if (document.exists()) {
-                        // Obtener datos de Firestore
-                        val nombreUsuario = document.getString("nombre_usuario") ?: "Usuario"
-                        val correo = document.getString("Correo") ?: currentUser.email ?: ""
-                        val descripcionUsuario = document.getString("descripcion") ?: "Esta es tu descripción personal. Puedes editarla para contar más sobre ti."
-
-                        // Actualizar LiveData
-                        _nombre.value = nombreUsuario
-                        _username.value = "@${nombreUsuario.lowercase(Locale.ROOT).replace(" ", "")}"
-                        _email.value = correo
-                        _descripcion.value = descripcionUsuario
-
-                        // Cargar rutas reales del usuario
-                        cargarRutasUsuario(currentUser.uid)
-
-                        // Cargar logros del usuario
-                        cargarLogrosUsuario(currentUser.uid)
+                        procesarDatosUsuario(document)
+                        _isOnline.value = true
+                        _showOfflineMessage.value = false
                     } else {
-                        // Si no existe el documento, crear uno básico
                         crearUsuarioEnFirestore(currentUser.uid, currentUser.email ?: "")
                     }
+                    _isLoading.value = false
                 }
                 .addOnFailureListener { exception ->
-                    _isLoading.value = false
+                    // En caso de error, intentamos cargar desde cache offline
+                    manejarErrorOffline()
                 }
         } else {
             _isLoading.value = false
         }
     }
 
-    // Cargar rutas reales del usuario desde Firestore
+    // Función auxiliar para procesar datos del usuario
+    private fun procesarDatosUsuario(document: com.google.firebase.firestore.DocumentSnapshot) {
+        val nombreUsuario = document.getString("nombre_usuario") ?: "Usuario"
+        val correo = document.getString("Correo") ?: auth.currentUser?.email ?: ""
+        val descripcionUsuario = document.getString("descripcion") ?: "Esta es tu descripción personal. Puedes editarla para contar más sobre ti."
+
+        _nombre.value = nombreUsuario
+        _username.value = "@${nombreUsuario.lowercase(Locale.ROOT).replace(" ", "")}"
+        _email.value = correo
+        _descripcion.value = descripcionUsuario
+
+        cargarRutasUsuario(auth.currentUser?.uid ?: "")
+        cargarLogrosUsuario(auth.currentUser?.uid ?: "")
+    }
+
+    // Manejar estado offline
+    private fun manejarErrorOffline() {
+        _isOnline.value = false
+        _showOfflineMessage.value = true
+        _isLoading.value = false
+
+        // Los datos se cargarán automáticamente desde la cache offline
+        // si el usuario ya había cargado datos previamente
+    }
+
+    // Cargar rutas reales del usuario desde Firestore (mejorado para offline)
     private fun cargarRutasUsuario(userId: String) {
         db.collection("Rutas")
             .whereEqualTo("user_id", userId)
@@ -107,15 +131,15 @@ class ProfileViewModel : ViewModel() {
                 _rutasPublicadas.value = rutas
             }
             .addOnFailureListener { exception ->
-                // Si hay error o no hay rutas, mostrar lista vacía
+                // En modo offline, mostrar lista vacía o datos cacheados
                 _rutasPublicadas.value = emptyList()
             }
     }
 
-    // Nuevo: Cargar logros del usuario desde la subcolección
+    // Cargar logros del usuario desde la subcolección (mejorado para offline)
     private fun cargarLogrosUsuario(userId: String) {
         db.collection("Usuarios").document(userId)
-            .collection("Logros")  // Subcolección de logros
+            .collection("Logros")
             .get()
             .addOnSuccessListener { querySnapshot ->
                 val logrosList = mutableListOf<Logro>()
@@ -131,7 +155,6 @@ class ProfileViewModel : ViewModel() {
                     logrosList.add(Logro(id, nombre, descripcion, icono, obtenido, fechaObtencion))
                 }
 
-                // Si no hay logros, inicializar los logros base
                 if (logrosList.isEmpty()) {
                     inicializarLogrosBase(userId)
                 } else {
@@ -140,12 +163,12 @@ class ProfileViewModel : ViewModel() {
                 }
             }
             .addOnFailureListener { exception ->
-                // Si hay error, inicializar logros base
+                // En modo offline, intentar inicializar logros base
                 inicializarLogrosBase(userId)
             }
     }
 
-    // Nuevo: Inicializar logros base para un usuario
+    // Inicializar logros base para un usuario (mejorado para offline)
     private fun inicializarLogrosBase(userId: String) {
         val logrosBase = listOf(
             hashMapOf(
@@ -189,7 +212,6 @@ class ProfileViewModel : ViewModel() {
 
         batch.commit()
             .addOnSuccessListener {
-                // Crear lista de logros para el LiveData
                 val logrosParaLiveData = logrosIds.mapIndexed { index, id ->
                     Logro(
                         id = id,
@@ -204,11 +226,23 @@ class ProfileViewModel : ViewModel() {
                 _isLoading.value = false
             }
             .addOnFailureListener {
+                // En modo offline, crear logros localmente
+                val logrosOffline = logrosIds.mapIndexed { index, id ->
+                    Logro(
+                        id = id,
+                        nombre = logrosBase[index]["nombre"] as String,
+                        descripcion = logrosBase[index]["descripcion"] as String,
+                        icono = logrosBase[index]["icono"] as String,
+                        obtenido = false,
+                        fechaObtencion = 0L
+                    )
+                }
+                _logros.value = logrosOffline
                 _isLoading.value = false
             }
     }
 
-    // Nuevo: Desbloquear un logro
+    // Desbloquear un logro (mejorado para offline)
     fun desbloquearLogro(logroId: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -222,20 +256,30 @@ class ProfileViewModel : ViewModel() {
                 .update(updateData)
                 .addOnSuccessListener {
                     // Actualizar la lista local de logros
-                    val logrosActuales = _logros.value ?: emptyList()
-                    val nuevosLogros = logrosActuales.map { logro ->
-                        if (logro.id == logroId) {
-                            logro.copy(obtenido = true, fechaObtencion = System.currentTimeMillis())
-                        } else {
-                            logro
-                        }
-                    }
-                    _logros.value = nuevosLogros
+                    actualizarLogroLocalmente(logroId)
+                }
+                .addOnFailureListener {
+                    // En modo offline, actualizar localmente igualmente
+                    // Se sincronizará cuando haya conexión
+                    actualizarLogroLocalmente(logroId)
                 }
         }
     }
 
-    // Modificar la función actualizarPerfil para desbloquear logro
+    // Actualizar logro localmente (para modo offline)
+    private fun actualizarLogroLocalmente(logroId: String) {
+        val logrosActuales = _logros.value ?: emptyList()
+        val nuevosLogros = logrosActuales.map { logro ->
+            if (logro.id == logroId) {
+                logro.copy(obtenido = true, fechaObtencion = System.currentTimeMillis())
+            } else {
+                logro
+            }
+        }
+        _logros.value = nuevosLogros
+    }
+
+    // Actualizar perfil (mejorado para offline)
     fun actualizarPerfil(nuevoNombre: String, nuevaDescripcion: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -252,18 +296,32 @@ class ProfileViewModel : ViewModel() {
                     _username.value = "@${nuevoNombre.lowercase(Locale.ROOT).replace(" ", "")}"
                     _descripcion.value = nuevaDescripcion
 
-                    // Desbloquear logro de editar perfil
+                    // Desbloquear logros
                     desbloquearLogro("editar_perfil")
-
-                    // Verificar si el perfil está completo para otro logro
                     if (nuevoNombre.isNotEmpty() && nuevaDescripcion.isNotEmpty() && nuevoNombre != "Nuevo Usuario") {
                         desbloquearLogro("perfil_completo")
                     }
+
+                    _isOnline.value = true
+                    _showOfflineMessage.value = false
                 }
                 .addOnFailureListener { exception ->
-                    // Manejar error de actualización
+                    // En modo offline, actualizar localmente igualmente
+                    _nombre.value = nuevoNombre
+                    _username.value = "@${nuevoNombre.lowercase(Locale.ROOT).replace(" ", "")}"
+                    _descripcion.value = nuevaDescripcion
+                    _isOnline.value = false
+                    _showOfflineMessage.value = true
+
+                    // Los cambios se sincronizarán automáticamente cuando haya conexión
                 }
         }
+    }
+
+    // Función para forzar sincronización
+    fun sincronizarDatos() {
+        _showOfflineMessage.value = false
+        cargarDatosUsuario()
     }
 
     private fun crearUsuarioEnFirestore(userId: String, email: String) {
@@ -280,7 +338,6 @@ class ProfileViewModel : ViewModel() {
         db.collection("Usuarios").document(userId)
             .set(usuarioData)
             .addOnSuccessListener {
-                // Recargar datos después de crear el usuario
                 cargarDatosUsuario()
             }
             .addOnFailureListener {
@@ -295,7 +352,6 @@ data class Ruta(
     val duracion: String
 )
 
-// Nuevo: Data class para logros
 data class Logro(
     val id: String,
     val nombre: String,

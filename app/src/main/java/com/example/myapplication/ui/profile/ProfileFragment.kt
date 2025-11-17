@@ -57,7 +57,7 @@ class ProfileFragment : Fragment() {
             setupRutasList(rutas)
         }
 
-        // Nuevo: Observar logros
+        // Observar logros
         profileViewModel.logros.observe(viewLifecycleOwner) { logros ->
             setupLogrosList(logros)
         }
@@ -66,9 +66,21 @@ class ProfileFragment : Fragment() {
             if (isLoading) {
                 binding.progressBar.visibility = View.VISIBLE
                 binding.contentLayout.visibility = View.GONE
+                binding.offlineIndicator.visibility = View.GONE
             } else {
                 binding.progressBar.visibility = View.GONE
                 binding.contentLayout.visibility = View.VISIBLE
+            }
+        }
+
+        // NUEVO: Observar estado de conexión
+        profileViewModel.isOnline.observe(viewLifecycleOwner) { isOnline ->
+            updateUIForConnectionState(isOnline)
+        }
+
+        profileViewModel.showOfflineMessage.observe(viewLifecycleOwner) { showOffline ->
+            if (showOffline) {
+                showOfflineMessage()
             }
         }
 
@@ -77,8 +89,56 @@ class ProfileFragment : Fragment() {
             mostrarDialogoEditarPerfil()
         }
 
+        // NUEVO: Botón de reintentar conexión
+        binding.retryButton.setOnClickListener {
+            retryConnection()
+        }
+
         // Cargar datos del usuario
         profileViewModel.cargarDatosUsuario()
+    }
+
+    // NUEVO: Actualizar UI según estado de conexión
+    private fun updateUIForConnectionState(isOnline: Boolean) {
+        if (!isOnline && !(profileViewModel.isLoading.value ?: true)) {
+            binding.offlineIndicator.visibility = View.VISIBLE
+            binding.botonEditar.alpha = 0.6f
+            binding.botonEditar.isEnabled = false
+        } else {
+            binding.offlineIndicator.visibility = View.GONE
+            binding.botonEditar.alpha = 1.0f
+            binding.botonEditar.isEnabled = true
+            binding.offlineProgressBar.visibility = View.GONE
+            binding.retryButton.visibility = View.VISIBLE
+        }
+    }
+
+    // NUEVO: Reintentar conexión
+    private fun retryConnection() {
+        binding.retryButton.visibility = View.GONE
+        binding.offlineProgressBar.visibility = View.VISIBLE
+
+        profileViewModel.sincronizarDatos()
+
+        // Ocultar el progreso después de 3 segundos si aún no hay respuesta
+        binding.root.postDelayed({
+            binding.offlineProgressBar.visibility = View.GONE
+            binding.retryButton.visibility = View.VISIBLE
+        }, 3000)
+    }
+
+    // NUEVO: Mostrar mensaje offline
+    private fun showOfflineMessage() {
+        binding.offlineIndicator.visibility = View.VISIBLE
+
+        // Mostrar toast informativo solo la primera vez
+        if (profileViewModel.isOnline.value == false) {
+            android.widget.Toast.makeText(
+                requireContext(),
+                "Modo offline activado. Los datos pueden no estar actualizados.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun mostrarDialogoEditarPerfil() {
@@ -99,12 +159,30 @@ class ProfileFragment : Fragment() {
 
                 if (nuevoNombre.isNotEmpty()) {
                     profileViewModel.actualizarPerfil(nuevoNombre, nuevaDescripcion)
+
+                    // Mostrar mensaje según el estado de conexión
+                    if (profileViewModel.isOnline.value == false) {
+                        android.widget.Toast.makeText(
+                            requireContext(),
+                            "Cambios guardados localmente. Se sincronizarán cuando haya conexión.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
             .setNegativeButton(getString(R.string.cancelar), null)
             .create()
 
         dialog.show()
+
+        // NUEVO: Personalizar el botón positivo si estamos offline
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            if (profileViewModel.isOnline.value == false) {
+                positiveButton.text = "Guardar (Offline)"
+                positiveButton.setTextColor(0xFFFFA000.toInt()) // Color naranja
+            }
+        }
     }
 
     private fun setupRutasList(rutas: List<Ruta>) {
@@ -113,7 +191,11 @@ class ProfileFragment : Fragment() {
 
         if (rutas.isEmpty()) {
             val textView = TextView(requireContext()).apply {
-                text = "No tienes ninguna ruta publicada"
+                text = if (profileViewModel.isOnline.value == false) {
+                    "No se pueden cargar rutas sin conexión"
+                } else {
+                    "No tienes ninguna ruta publicada"
+                }
                 textSize = 15f
                 setTextColor(0xFF666666.toInt())
                 setPadding(0, 24.dpToPx(), 0, 0)
@@ -135,6 +217,11 @@ class ProfileFragment : Fragment() {
                         if (index > 0) {
                             topMargin = 12.dpToPx()
                         }
+                    }
+
+                    // NUEVO: Indicador visual de datos cacheados
+                    if (profileViewModel.isOnline.value == false) {
+                        alpha = 0.8f
                     }
                 }
 
@@ -182,19 +269,34 @@ class ProfileFragment : Fragment() {
                     rutaCard.addView(descripcionTextView)
                 }
 
+                // Indicador de datos en cache
+                if (profileViewModel.isOnline.value == false) {
+                    val cacheIndicator = TextView(requireContext()).apply {
+                        text = "📱 Datos en cache"
+                        textSize = 12f
+                        setTextColor(0xFF888888.toInt())
+                        setPadding(0, 8.dpToPx(), 0, 0)
+                    }
+                    rutaCard.addView(cacheIndicator)
+                }
+
                 layoutRutas.addView(rutaCard)
             }
         }
     }
 
-    // Nuevo: Configurar la lista de logros
+    // Configurar la lista de logros
     private fun setupLogrosList(logros: List<Logro>) {
         val layoutLogros = binding.layoutLogros
         layoutLogros.removeAllViews()
 
         if (logros.isEmpty()) {
             val textView = TextView(requireContext()).apply {
-                text = "Aún no tienes logros desbloqueados"
+                text = if (profileViewModel.isOnline.value == false) {
+                    "No se pueden cargar logros sin conexión"
+                } else {
+                    "Aún no tienes logros desbloqueados"
+                }
                 textSize = 15f
                 setTextColor(0xFF666666.toInt())
                 setPadding(0, 24.dpToPx(), 0, 0)
@@ -210,7 +312,7 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // Nuevo: Crear tarjeta de logro individual
+    // Crear tarjeta de logro individual
     private fun createLogroCard(logro: Logro, index: Int): LinearLayout {
         return LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -224,6 +326,11 @@ class ProfileFragment : Fragment() {
                 }
             }
             background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
+
+            // NUEVO: Indicador visual para datos offline
+            if (profileViewModel.isOnline.value == false && !logro.obtenido) {
+                alpha = 0.7f
+            }
 
             // Icono del logro
             val iconoTextView = TextView(requireContext()).apply {
@@ -259,6 +366,17 @@ class ProfileFragment : Fragment() {
                 textSize = 14f
                 setTextColor(if (logro.obtenido) 0xFF666666.toInt() else 0xFFAAAAAA.toInt())
                 setPadding(0, 4.dpToPx(), 0, 0)
+            }
+
+            // NUEVO: Indicador de progreso offline para logros no obtenidos
+            if (profileViewModel.isOnline.value == false && !logro.obtenido) {
+                val offlineInfo = TextView(requireContext()).apply {
+                    text = "Conecta para desbloquear"
+                    textSize = 12f
+                    setTextColor(0xFF4285F4.toInt())
+                    setPadding(0, 4.dpToPx(), 0, 0)
+                }
+                infoLayout.addView(offlineInfo)
             }
 
             infoLayout.addView(nombreTextView)
