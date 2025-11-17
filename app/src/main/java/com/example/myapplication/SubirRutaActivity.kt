@@ -25,7 +25,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
 
-// 🔹 Datos de tu cuenta Cloudinary
 private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
 private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
 
@@ -37,7 +36,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var subirBtn: Button
     private lateinit var cancelarBtn: Button
 
-    // Coordenadas que vienen desde HomeFragment
+    private val imageUris = mutableListOf<Uri>()
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
 
     private val pickImageLauncher =
