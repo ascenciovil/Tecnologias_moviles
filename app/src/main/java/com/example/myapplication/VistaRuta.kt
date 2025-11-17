@@ -24,23 +24,19 @@ class VistaRuta : AppCompatActivity() {
         val tvDescription = findViewById<TextView>(R.id.tv_description)
         val imgMap = findViewById<ImageView>(R.id.img_map_placeholder)
 
-        // 🏷️ Configurar título de la ruta (por ahora simulado)
         val nombreRuta = "Ruta del Parque Central"
         toolbar.title = nombreRuta
 
-        // 🏃‍♂️ Descripción simulada
         val descripcion = """
             Esta ruta recorre el Parque Central completo, ideal para caminar o trotar.
             Tiene una distancia aproximada de 5 km y cuenta con zonas verdes y senderos.
         """.trimIndent()
         tvDescription.text = descripcion
 
-        // 🔙 Acción del botón de retroceso (flecha en el top bar)
         toolbar.setNavigationOnClickListener {
             finish() // vuelve a la activity anterior
         }
 
-        // ▶️ Botón "Seguir ruta" (placeholder)
         btnSeguir.setOnClickListener { view ->
             Snackbar.make(view, "Iniciando seguimiento (no implementado)...", Snackbar.LENGTH_SHORT).show()
 
