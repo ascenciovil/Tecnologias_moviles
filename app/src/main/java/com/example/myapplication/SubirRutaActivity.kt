@@ -35,7 +35,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var nombreRuta: EditText
     private lateinit var descripcionRuta: EditText
     private lateinit var subirBtn: Button
-    private lateinit var cancelarBtn: Button
+    private val imageUris = mutableListOf<Uri>()
 
     // Coordenadas que vienen desde HomeFragment
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
@@ -58,7 +58,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         nombreRuta = findViewById(R.id.routename)
         descripcionRuta = findViewById(R.id.descripcion)
         subirBtn = findViewById(R.id.subirRuta)
-        cancelarBtn = findViewById(R.id.cancelar)
 
         // Recuperar coordenadas enviadas desde el fragment
         coordenadas = intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf()
@@ -69,7 +68,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
         updateGrid()
 
-        // SUBIR RUTA
         subirBtn.setOnClickListener {
             if (nombreRuta.text.isEmpty() || descripcionRuta.text.isEmpty()) {
                 Toast.makeText(this, "Completa todos los campos", Toast.LENGTH_SHORT).show()
@@ -77,20 +75,16 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             subirRuta()
         }
-
-        // CANCELAR
-        cancelarBtn.setOnClickListener {
-            cancelarRuta()
-        }
     }
 
-    // --- Mostrar la ruta en el mapa ---
+    // --- Mostrar puntos en el mapa ---
     override fun onMapReady(googleMap: GoogleMap) {
         if (coordenadas.isEmpty()) {
-            Toast.makeText(this, "No se recibieron coordenadas", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No se recibieron coordenadas válidas", Toast.LENGTH_SHORT).show()
             return
         }
 
+        // Dibujar la línea de la ruta
         googleMap.addPolyline(
             PolylineOptions()
                 .addAll(coordenadas)
@@ -98,13 +92,12 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 .width(5f)
         )
 
+        // Centrar cámara en el primer punto
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordenadas.first(), 15f))
     }
 
-    // --- Grid de imágenes ---
     private fun updateGrid() {
         gridLayout.removeAllViews()
-
         for (uri in imageUris) {
             val imageView = ImageView(this).apply {
                 setImageURI(uri)
@@ -176,7 +169,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val firestore = FirebaseFirestore.getInstance()
 
-        // Preparar coordenadas para Firestore
+        // Convertir coordenadas para Firestore
         val coordList = coordenadas.map {
             mapOf("latitude" to it.latitude, "longitude" to it.longitude)
         }
@@ -235,15 +228,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this@SubirRutaActivity, "Error al subir la ruta: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
         }
-    }
-
-    private fun cancelarRuta() {
-        Toast.makeText(this, "Ruta cancelada", Toast.LENGTH_SHORT).show()
-
-        val intent = Intent(this, MainActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
-        finish()
     }
 
     private fun volverAMain() {
