@@ -53,4 +53,63 @@
         android:padding="12dp"
         android:text="Empezar ruta" />
 
+    <LinearLayout
+        android:id="@+id/dataLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp"
+        android:background="@color/purple_500"
+        android:visibility="gone">
+
+        <!-- Pasos -->
+        <TextView
+            android:id="@+id/pasosText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pasos: 0"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:paddingTop="24dp"
+            android:visibility="gone"/>
+
+        <!-- Distancia recorrida -->
+        <TextView
+            android:id="@+id/distanciaText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Distancia recorrida: 0 m"
+            android:textSize="24sp"
+            android:textColor="@android:color/white"
+            android:paddingTop="16dp"
+            android:visibility="gone"/>
+
+        <!-- Velocidad promedio -->
+        <TextView
+            android:id="@+id/velocidadText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Velocidad promedio: 0 m/s"
+            android:textSize="24sp"
+            android:textColor="@android:color/white"
+            android:paddingTop="16dp"
+            android:visibility="gone"/>
+
+        <!-- Botón de continuar -->
+        <Button
+            android:id="@+id/btnContinuar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Continuar"
+            android:textStyle="bold"
+            android:padding="12dp"
+            android:layout_marginTop="32dp"
+            android:backgroundTint="@android:color/white"
+            android:textColor="@color/purple_500" />
+
+    </LinearLayout>
+
+
 </FrameLayout>

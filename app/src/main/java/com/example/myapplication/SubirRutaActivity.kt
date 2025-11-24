@@ -59,16 +59,13 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         subirBtn = findViewById(R.id.subirRuta)
         cancelarBtn = findViewById(R.id.cancelar)
 
-        // Recuperar coordenadas enviadas desde el fragment
         coordenadas = intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf()
 
-        // Inicializar el mapa
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
         mapFragment?.getMapAsync(this)
 
         updateGrid()
 
-        // SUBIR RUTA
         subirBtn.setOnClickListener {
             if (nombreRuta.text.isEmpty() || descripcionRuta.text.isEmpty()) {
                 Toast.makeText(this, "Completa todos los campos", Toast.LENGTH_SHORT).show()
@@ -77,22 +74,19 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             subirRuta()
         }
 
-        // CANCELAR
         cancelarBtn.setOnClickListener {
-            cancelarRuta()
+            finish()
         }
     }
 
-    // --- Mostrar la ruta en el mapa ---
     override fun onMapReady(googleMap: GoogleMap) {
         if (coordenadas.isEmpty()) {
-            Toast.makeText(this, "No se recibieron coordenadas", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No se recibieron coordenadas válidas", Toast.LENGTH_SHORT).show()
             return
         }
 
         googleMap.addPolyline(
-            PolylineOptions()
-                .addAll(coordenadas)
+            PolylineOptions().addAll(coordenadas)
                 .color(android.graphics.Color.BLUE)
                 .width(5f)
         )
@@ -100,10 +94,8 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordenadas.first(), 15f))
     }
 
-    // --- Grid de imágenes ---
     private fun updateGrid() {
         gridLayout.removeAllViews()
-
         for (uri in imageUris) {
             val imageView = ImageView(this).apply {
                 setImageURI(uri)
@@ -131,13 +123,11 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         pickImageLauncher.launch("image/*")
     }
 
-    // 🔹 Subir UNA imagen a Cloudinary y devolver la URL (o null si falla)
     private suspend fun uploadImageToCloudinary(uri: Uri): String? {
         return withContext(Dispatchers.IO) {
             try {
                 val inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
 
-                // Copiamos el contenido a un archivo temporal
                 val tempFile = File.createTempFile("upload_", ".jpg", cacheDir)
                 FileOutputStream(tempFile).use { out ->
                     inputStream.use { it.copyTo(out) }
@@ -150,8 +140,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     requestFile
                 )
 
-                val presetBody: RequestBody =
-                    CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
+                val presetBody = CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
 
                 val response = CloudinaryService.api.uploadImage(
                     CLOUDINARY_CLOUD_NAME,
@@ -167,7 +156,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    // 🔹 Subir ruta + imágenes (Cloudinary + Firestore)
     private fun subirRuta() {
         val nombre = nombreRuta.text.toString().trim()
         val descripcion = descripcionRuta.text.toString().trim()
@@ -175,7 +163,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val firestore = FirebaseFirestore.getInstance()
 
-        // Preparar coordenadas para Firestore
         val coordList = coordenadas.map {
             mapOf("latitude" to it.latitude, "longitude" to it.longitude)
         }
@@ -189,7 +176,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             "coordenadas" to coordList
         )
 
-        // SIN IMÁGENES → solo guardamos la ruta
         if (imageUris.isEmpty()) {
             firestore.collection("Rutas")
                 .add(rutaData)
@@ -197,29 +183,18 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
                     volverAMain()
                 }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "Error al subir la ruta: ${e.message}", Toast.LENGTH_SHORT).show()
+                .addOnFailureListener {
+                    Toast.makeText(this, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
                 }
             return
         }
 
-        // CON IMÁGENES → subimos primero a Cloudinary
         lifecycleScope.launch {
             val imagenesUrls = mutableListOf<String>()
 
             for (uri in imageUris) {
                 val url = uploadImageToCloudinary(uri)
-                if (url != null) {
-                    imagenesUrls.add(url)
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@SubirRutaActivity,
-                            "Error subiendo una imagen",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+                if (url != null) imagenesUrls.add(url)
             }
 
             rutaData["imagenes"] = imagenesUrls
@@ -230,19 +205,10 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     Toast.makeText(this@SubirRutaActivity, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
                     volverAMain()
                 }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this@SubirRutaActivity, "Error al subir la ruta: ${e.message}", Toast.LENGTH_SHORT).show()
+                .addOnFailureListener {
+                    Toast.makeText(this@SubirRutaActivity, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
                 }
         }
-    }
-
-    private fun cancelarRuta() {
-        Toast.makeText(this, "Ruta cancelada", Toast.LENGTH_SHORT).show()
-
-        val intent = Intent(this, MainActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
-        finish()
     }
 
     private fun volverAMain() {
