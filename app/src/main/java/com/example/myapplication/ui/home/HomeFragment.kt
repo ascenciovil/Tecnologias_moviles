@@ -24,6 +24,8 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import java.util.Locale
+import android.widget.TextView
+
 
 class HomeFragment : Fragment(), OnMapReadyCallback {
 
@@ -34,6 +36,11 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
     private lateinit var locationCallback: LocationCallback
     private var recording = false
     private val rutaCoords = mutableListOf<LatLng>()
+
+    private val pasosTotales = 523
+    private val distanciaTotal = 1.34   // km de ejemplo
+    private val velocidadPromedio = 4.8 // km/h de ejemplo
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -122,6 +129,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
         recording = true
         rutaCoords.clear()
         binding.btnRuta.text = "Detener ruta"
+        binding.searchBar.visibility = View.GONE
         Toast.makeText(requireContext(), "Grabando ruta...", Toast.LENGTH_SHORT).show()
 
         val locationRequest = LocationRequest.create().apply {
@@ -164,10 +172,70 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
         }
 
         Toast.makeText(requireContext(), "Ruta finalizada", Toast.LENGTH_SHORT).show()
-        val intent = Intent(requireContext(), SubirRutaActivity::class.java)
-        intent.putExtra("coordenadas", ArrayList(rutaCoords))
-        startActivity(intent)
+
+        // 1. Mostrar layout morado
+        binding.dataLayout.visibility = View.VISIBLE
+
+        // 2. Ocultar botón de ruta
+        binding.btnRuta.visibility = View.GONE
+
+        // 3. ANIMACIONES (secuenciales)
+        binding.pasosText.visibility = View.VISIBLE
+        animateNumberTextView(binding.pasosText, 0, pasosTotales, suffix = " pasos") {
+
+            requireActivity().runOnUiThread {
+                binding.distanciaText.visibility = View.VISIBLE
+            }
+            animateDecimalTextView(binding.distanciaText, distanciaTotal, " km") {
+
+                requireActivity().runOnUiThread {
+                    binding.velocidadText.visibility = View.VISIBLE
+                }
+                animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h") {
+
+                }
+            }
+        }
+
+
+        // 4. Configurar botón continuar
+        binding.btnContinuar.setOnClickListener {
+            val intent = Intent(requireContext(), SubirRutaActivity::class.java)
+            intent.putExtra("coordenadas", ArrayList(rutaCoords))
+            startActivity(intent)
+        }
     }
+
+    private fun animateNumberTextView(textView: TextView, from: Int, to: Int, suffix: String = "", onEnd: (() -> Unit)? = null) {
+        val duration = 1500L
+        val increment = if (to > 0) (duration / to).coerceAtLeast(1) else duration
+
+        Thread {
+            for (i in from..to) {
+                requireActivity().runOnUiThread {
+                    textView.text = "$i$suffix"
+                }
+                Thread.sleep(increment)
+            }
+            onEnd?.invoke()
+        }.start()
+    }
+    private fun animateDecimalTextView(textView: TextView, to: Double, suffix: String = "", onEnd: (() -> Unit)? = null) {
+        val steps = 100
+        val increment = to / steps
+
+        Thread {
+            for (i in 0..steps) {
+                val value = (i * increment)
+                requireActivity().runOnUiThread {
+                    textView.text = String.format(Locale.US, "%.2f%s", value, suffix)
+                }
+                Thread.sleep(15)
+            }
+            onEnd?.invoke()
+        }.start()
+    }
+
 
     override fun onDestroyView() {
         super.onDestroyView()
