@@ -144,10 +144,19 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                     } ?: emptyList()
 
 
-                // imágenes: List<String> (si las guardaste así)
-                imagenesRuta = (doc.get("imagenes") as? List<*>)
-                    ?.mapNotNull { it as? String }
-                    ?: emptyList()
+                val imagenesField = doc.get("imagenes")
+
+                imagenesRuta = when (imagenesField) {
+                    is List<*> -> imagenesField.mapNotNull { item ->
+                        when (item) {
+                            is String -> item
+                            is Map<*, *> -> item["url"] as? String
+                            else -> null
+                        }
+                    }
+                    else -> emptyList()
+                }
+
 
                 toolbar.title = nombre
                 tvDescription.text = descripcion
