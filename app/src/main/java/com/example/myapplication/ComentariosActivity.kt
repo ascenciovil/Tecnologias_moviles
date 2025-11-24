@@ -1,6 +1,10 @@
 package com.example.myapplication
 
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -20,17 +24,16 @@ class ComentariosActivity : AppCompatActivity() {
 
     private lateinit var toolbar: MaterialToolbar
     private lateinit var recycler: RecyclerView
-    private lateinit var adapter: ComentariosAdapter
     private lateinit var etNuevoComentario: TextInputEditText
     private lateinit var btnEnviar: MaterialButton
 
-    private val db = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
-
-    private var nombreUsuarioActual: String = "Usuario"
-
+    private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
 
     private lateinit var rutaId: String
+    private var nombreUsuarioActual: String = "Usuario"
+
+    private lateinit var adapter: ComentariosAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,19 +45,21 @@ class ComentariosActivity : AppCompatActivity() {
             return
         }
 
-        cargarNombreUsuario()
-
         toolbar = findViewById(R.id.topAppBar)
         recycler = findViewById(R.id.recycler_comentarios)
         etNuevoComentario = findViewById(R.id.et_nuevo_comentario)
         btnEnviar = findViewById(R.id.btn_enviar_comentario)
 
-        toolbar.setNavigationOnClickListener { finish() }
+        // Flecha de back (si tienes un drawable, puedes setearlo aquí)
+        toolbar.setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
 
         adapter = ComentariosAdapter()
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
+        cargarNombreUsuario()
         escucharComentarios()
 
         btnEnviar.setOnClickListener {
@@ -62,6 +67,7 @@ class ComentariosActivity : AppCompatActivity() {
         }
     }
 
+    // ───────────────────────── cargar nombre de usuario ─────────────────────────
     private fun cargarNombreUsuario() {
         val usuario = auth.currentUser ?: return
 
@@ -70,12 +76,12 @@ class ComentariosActivity : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
                     val nombre = doc.getString("nombre_usuario") ?: "Usuario"
-                    nombreUsuarioActual = nombre
+                    nombreUsuarioActual = nombre   // o "@$nombre" si quieres el arroba
                 }
             }
     }
 
-
+    // ───────────────────────── escuchar comentarios en tiempo real ─────────────
     private fun escucharComentarios() {
         db.collection("Rutas").document(rutaId)
             .collection("comentarios")
@@ -100,6 +106,7 @@ class ComentariosActivity : AppCompatActivity() {
             }
     }
 
+    // ───────────────────────── guardar nuevo comentario ────────────────────────
     private fun guardarComentario() {
         val texto = etNuevoComentario.text?.toString()?.trim()
         if (texto.isNullOrEmpty()) {
@@ -119,7 +126,6 @@ class ComentariosActivity : AppCompatActivity() {
             "fecha" to FieldValue.serverTimestamp()
         )
 
-
         db.collection("Rutas").document(rutaId)
             .collection("comentarios")
             .add(data)
@@ -130,8 +136,8 @@ class ComentariosActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error al guardar comentario", Toast.LENGTH_SHORT).show()
             }
     }
-    //  MODELO Y ADAPTADOR
 
+    // ───────────────────────── modelo y adapter ────────────────────────────────
     data class Comentario(
         val id: String = "",
         val texto: String = "",
@@ -151,16 +157,15 @@ class ComentariosActivity : AppCompatActivity() {
             notifyDataSetChanged()
         }
 
-        inner class ComentarioViewHolder(itemView: android.view.View) :
-            RecyclerView.ViewHolder(itemView) {
-
-            val tvAutor = itemView.findViewById<android.widget.TextView>(R.id.tv_autor_comentario)
-            val tvFecha = itemView.findViewById<android.widget.TextView>(R.id.tv_fecha_comentario)
-            val tvTexto = itemView.findViewById<android.widget.TextView>(R.id.tv_texto_comentario)
+        inner class ComentarioViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val tvAutor: TextView = view.findViewById(R.id.tv_autor_comentario)
+            val tvFecha: TextView = view.findViewById(R.id.tv_fecha_comentario)
+            val tvTexto: TextView = view.findViewById(R.id.tv_texto_comentario)
+            val tvAvatar: TextView = view.findViewById(R.id.tv_avatar_comentario)
         }
 
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ComentarioViewHolder {
-            val view = android.view.LayoutInflater.from(parent.context)
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ComentarioViewHolder {
+            val view = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_comentario, parent, false)
             return ComentarioViewHolder(view)
         }
@@ -170,6 +175,9 @@ class ComentariosActivity : AppCompatActivity() {
             holder.tvAutor.text = c.nombreUsuario
             holder.tvTexto.text = c.texto
             holder.tvFecha.text = c.fecha?.let { sdf.format(it) } ?: ""
+
+            val inicial = c.nombreUsuario.firstOrNull()?.uppercaseChar() ?: '?'
+            holder.tvAvatar.text = inicial.toString()
         }
 
         override fun getItemCount(): Int = items.size
