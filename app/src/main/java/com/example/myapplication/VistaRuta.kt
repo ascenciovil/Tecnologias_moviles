@@ -101,8 +101,14 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         // 💬 Botón "Ver comentarios"
         btnComentarios.setOnClickListener {
-            Toast.makeText(this, "Mostrando comentarios (no implementado)", Toast.LENGTH_SHORT)
-                .show()
+            val id = rutaId
+            if (id.isNullOrEmpty()) {
+                Toast.makeText(this, "No se pudo obtener la ruta", Toast.LENGTH_SHORT).show()
+            } else {
+                val intent = Intent(this, ComentariosActivity::class.java)
+                intent.putExtra("ruta_id", id)
+                startActivity(intent)
+            }
         }
     }
 
