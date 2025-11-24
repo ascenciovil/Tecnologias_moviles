@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -13,7 +14,20 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
+import java.io.FileOutputStream
+
+// 🔹 Cloudinary
+private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
+private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
 
 class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -21,13 +35,16 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var nombreRuta: EditText
     private lateinit var descripcionRuta: EditText
     private lateinit var subirBtn: Button
+    private lateinit var cancelarBtn: Button
+
     private val imageUris = mutableListOf<Uri>()
 
-    // ← Aquí guardaremos las coordenadas que vienen desde HomeFragment
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
 
     private val pickImageLauncher =
-        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: Uri? ->
+        registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
             uri?.let {
                 imageUris.add(it)
                 updateGrid()
@@ -42,11 +59,10 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         nombreRuta = findViewById(R.id.routename)
         descripcionRuta = findViewById(R.id.descripcion)
         subirBtn = findViewById(R.id.subirRuta)
+        cancelarBtn = findViewById(R.id.cancelar)
 
-        // --- Recuperar coordenadas enviadas desde el fragment ---
         coordenadas = intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf()
 
-        // --- Inicializar el mapa ---
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
         mapFragment?.getMapAsync(this)
 
@@ -59,24 +75,24 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             subirRuta()
         }
+
+        cancelarBtn.setOnClickListener {
+            finish()
+        }
     }
 
-    // --- Mostrar puntos en el mapa ---
     override fun onMapReady(googleMap: GoogleMap) {
         if (coordenadas.isEmpty()) {
             Toast.makeText(this, "No se recibieron coordenadas válidas", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Dibujar la línea de la ruta
         googleMap.addPolyline(
-            PolylineOptions()
-                .addAll(coordenadas)
+            PolylineOptions().addAll(coordenadas)
                 .color(android.graphics.Color.BLUE)
                 .width(5f)
         )
 
-        // Centrar cámara en el primer punto
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordenadas.first(), 15f))
     }
 
@@ -109,15 +125,46 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         pickImageLauncher.launch("image/*")
     }
 
+    private suspend fun uploadImageToCloudinary(uri: Uri): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
+
+                val tempFile = File.createTempFile("upload_", ".jpg", cacheDir)
+                FileOutputStream(tempFile).use { out ->
+                    inputStream.use { it.copyTo(out) }
+                }
+
+                val requestFile = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val body = MultipartBody.Part.createFormData(
+                    "file",
+                    tempFile.name,
+                    requestFile
+                )
+
+                val presetBody = CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                val response = CloudinaryService.api.uploadImage(
+                    CLOUDINARY_CLOUD_NAME,
+                    body,
+                    presetBody
+                )
+
+                response.secure_url
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+
     private fun subirRuta() {
-        val nombre = nombreRuta.text.toString()
-        val descripcion = descripcionRuta.text.toString()
+        val nombre = nombreRuta.text.toString().trim()
+        val descripcion = descripcionRuta.text.toString().trim()
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonimo"
 
         val firestore = FirebaseFirestore.getInstance()
-        val imageUrls = mutableListOf<String>()
 
-        // Convertir coordenadas para Firestore
         val coordList = coordenadas.map {
             mapOf("latitude" to it.latitude, "longitude" to it.longitude)
         }
@@ -131,7 +178,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             "coordenadas" to coordList
         )
 
-        // --- Si no hay imágenes ---
         if (imageUris.isEmpty()) {
             firestore.collection("Rutas")
                 .add(rutaData)
@@ -140,47 +186,29 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     volverAMain()
                 }
                 .addOnFailureListener {
-                    Toast.makeText(this, "Error al subir la ruta: ${it.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
                 }
             return
         }
 
-        // --- Subir imágenes ---
-        var uploadedCount = 0
-        for (uri in imageUris) {
-            val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
-            val extension = when (mimeType) {
-                "image/png" -> "png"
-                "image/webp" -> "webp"
-                "image/heic" -> "heic"
-                else -> "jpg"
+        lifecycleScope.launch {
+            val imagenesUrls = mutableListOf<String>()
+
+            for (uri in imageUris) {
+                val url = uploadImageToCloudinary(uri)
+                if (url != null) imagenesUrls.add(url)
             }
 
-            val fileName = "Rutas/$userId/${System.currentTimeMillis()}_${uploadedCount}.$extension"
-            val ref = FirebaseStorage.getInstance().reference.child(fileName)
+            rutaData["imagenes"] = imagenesUrls
 
-            ref.putFile(uri)
-                .addOnSuccessListener { taskSnapshot ->
-                    taskSnapshot.storage.downloadUrl.addOnSuccessListener { downloadUrl ->
-                        imageUrls.add(downloadUrl.toString())
-                        uploadedCount++
-
-                        if (uploadedCount == imageUris.size) {
-                            rutaData["imagenes"] = imageUrls
-                            firestore.collection("Rutas")
-                                .add(rutaData)
-                                .addOnSuccessListener {
-                                    Toast.makeText(this, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
-                                    volverAMain()
-                                }
-                                .addOnFailureListener {
-                                    Toast.makeText(this, "Error al subir la ruta: ${it.message}", Toast.LENGTH_SHORT).show()
-                                }
-                        }
-                    }
+            firestore.collection("Rutas")
+                .add(rutaData)
+                .addOnSuccessListener {
+                    Toast.makeText(this@SubirRutaActivity, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
+                    volverAMain()
                 }
                 .addOnFailureListener {
-                    Toast.makeText(this, "Error subiendo imagen: ${it.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@SubirRutaActivity, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
                 }
         }
     }

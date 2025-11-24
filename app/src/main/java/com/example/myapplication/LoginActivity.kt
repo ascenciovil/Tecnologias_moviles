@@ -20,6 +20,7 @@ class LoginActivity : AppCompatActivity() {
         val user_id: String = "",
         val Correo: String = "",
         val nombre_usuario: String = "", // Este campo vendrá de 'userRegistro'
+        val descripcion: String = "Esta es tu descripción personal. Puedes editarla para contar más sobre ti.",
         val foto_perf: String = "",
         val seguidos: List<String> = emptyList(),
         val rutas_creadas: List<String> = emptyList()
@@ -114,6 +115,7 @@ class LoginActivity : AppCompatActivity() {
                         user_id = userId,
                         Correo = correo,
                         nombre_usuario = nombreUsuario, // Guardamos el nombre de usuario
+                        descripcion = "Esta es tu descripción personal. Puedes editarla para contar más sobre ti.",
                         foto_perf = "", // Se puede actualizar después
                         seguidos = emptyList(),
                         rutas_creadas = emptyList()

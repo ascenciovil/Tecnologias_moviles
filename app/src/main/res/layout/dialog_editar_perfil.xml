@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/nombre_usuario"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:layout_marginBottom="4dp" />
+
+    <EditText
+        android:id="@+id/edit_nombre"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/ingresa_tu_nombre"
+        android:inputType="textPersonName"
+        android:autofillHints="name"
+        android:maxLines="1"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/descripcion"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:layout_marginBottom="4dp" />
+
+    <EditText
+        android:id="@+id/edit_descripcion"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/cuentanos_sobre_ti"
+        android:inputType="textMultiLine"
+        android:autofillHints=""
+        android:minLines="3"
+        android:maxLines="5"
+        android:gravity="top" />
+
+</LinearLayout>

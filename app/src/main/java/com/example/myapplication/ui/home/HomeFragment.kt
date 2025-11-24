@@ -125,6 +125,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
 
     // Iniciar grabación de ruta
     private fun startRecording() {
+        binding.searchBar.visibility = View.GONE
         recording = true
         rutaCoords.clear()
         binding.btnRuta.text = "Detener ruta"
@@ -160,6 +161,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
 
     // Detener y enviar a SubirRutaActivity
     private fun stopRecordingAndGoToSubirRuta() {
+        binding.searchBar.visibility = View.VISIBLE
         recording = false
         binding.btnRuta.text = "Empezar ruta"
         fusedLocationClient.removeLocationUpdates(locationCallback)
