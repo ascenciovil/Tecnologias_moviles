@@ -25,7 +25,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
 
-// 🔹 Cloudinary
 private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
 private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
 
@@ -38,7 +37,6 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var cancelarBtn: Button
 
     private val imageUris = mutableListOf<Uri>()
-
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
 
     private val pickImageLauncher =
