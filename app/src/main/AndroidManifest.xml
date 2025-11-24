@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature android:name="android.hardware.sensor.step counter" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.step detector" android:required="false" />
 
     <application
         android:allowBackup="true"

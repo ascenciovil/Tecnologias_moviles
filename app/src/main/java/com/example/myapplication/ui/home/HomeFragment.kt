@@ -3,7 +3,10 @@ package com.example.myapplication.ui.home
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Geocoder
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -26,27 +29,30 @@ import com.google.android.gms.maps.model.MarkerOptions
 import java.util.Locale
 import android.widget.TextView
 
-
-class HomeFragment : Fragment(), OnMapReadyCallback {
+class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
+
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
+
+    private lateinit var sensorManager: SensorManager
+    private var stepCounterSensor: Sensor? = null
+
     private var recording = false
     private val rutaCoords = mutableListOf<LatLng>()
 
-    private val pasosTotales = 523
-    private val distanciaTotal = 1.34   // km de ejemplo
-    private val velocidadPromedio = 4.8 // km/h de ejemplo
+    private var pasosInicio = -1
+    private var pasosActuales = 0
+
+    private var distanciaTotal = 0.0
+    private var velocidadPromedio = 0.0
+    private var tiempoInicio: Long = 0L
 
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
 
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
@@ -54,14 +60,14 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 
-        // Botón de iniciar/detener ruta
+        sensorManager = requireActivity().getSystemService(SensorManager::class.java)
+        stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+
         binding.btnRuta.setOnClickListener {
             if (!recording) startRecording() else stopRecordingAndGoToSubirRuta()
         }
 
-        // Configuración de la barra de búsqueda
         setupSearchBar()
-
         return binding.root
     }
 
@@ -70,135 +76,156 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
         getCurrentLocation()
     }
 
-    // Ubicación actual
     private fun getCurrentLocation() {
-        if (ActivityCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                requireActivity(),
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                1
-            )
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
             return
         }
 
         mMap.isMyLocationEnabled = true
         fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
             location?.let {
-                val currentLatLng = LatLng(it.latitude, it.longitude)
-                mMap.addMarker(MarkerOptions().position(currentLatLng).title("Mi ubicación"))
-                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 15f))
+                val point = LatLng(it.latitude, it.longitude)
+                mMap.addMarker(MarkerOptions().position(point).title("Mi ubicación"))
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(point, 15f))
             }
         }
     }
 
-    // Buscar ubicación por nombre
     private fun setupSearchBar() {
         binding.searchInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                val locationName = binding.searchInput.text.toString()
-                if (locationName.isNotEmpty()) {
-                    val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                val name = binding.searchInput.text.toString()
+                if (name.isNotEmpty()) {
                     try {
-                        val addresses = geocoder.getFromLocationName(locationName, 1)
-                        if (!addresses.isNullOrEmpty()) {
-                            val latLng = LatLng(addresses[0].latitude, addresses[0].longitude)
+                        val geo = android.location.Geocoder(requireContext(), Locale.getDefault())
+                        val list = geo.getFromLocationName(name, 1)
+                        if (!list.isNullOrEmpty()) {
+                            val latLng = LatLng(list[0].latitude, list[0].longitude)
                             mMap.clear()
-                            mMap.addMarker(MarkerOptions().position(latLng).title(locationName))
-                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                            mMap.addMarker(MarkerOptions().position(latLng).title(name))
+                            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
                         } else {
                             Toast.makeText(requireContext(), "No se encontró la ubicación", Toast.LENGTH_SHORT).show()
                         }
-                    } catch (e: Exception) {
-                        Toast.makeText(requireContext(), "Error al buscar ubicación", Toast.LENGTH_SHORT).show()
+                    } catch (_: Exception) {
                     }
                 }
                 true
-            } else {
-                false
-            }
+            } else false
         }
     }
 
-    // Iniciar grabación de ruta
     private fun startRecording() {
         binding.searchBar.visibility = View.GONE
         recording = true
         rutaCoords.clear()
+        pasosActuales = 0
+        pasosInicio = -1
+        distanciaTotal = 0.0
+        tiempoInicio = System.currentTimeMillis()
+
         binding.btnRuta.text = "Detener ruta"
-        binding.searchBar.visibility = View.GONE
         Toast.makeText(requireContext(), "Grabando ruta...", Toast.LENGTH_SHORT).show()
 
-        val locationRequest = LocationRequest.create().apply {
-            interval = 4000
-            fastestInterval = 2000
+        startStepSensor()
+        startGpsTracking()
+    }
+
+    private fun startGpsTracking() {
+        val request = LocationRequest.create().apply {
+            interval = 2000
+            fastestInterval = 1000
             priority = Priority.PRIORITY_HIGH_ACCURACY
         }
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                if (recording) {
-                    for (location in result.locations) {
-                        val point = LatLng(location.latitude, location.longitude)
-                        rutaCoords.add(point)
+                if (!recording) return
 
+                for (location in result.locations) {
+                    val point = LatLng(location.latitude, location.longitude)
+
+                    // Añadir coordenada
+                    if (rutaCoords.isNotEmpty()) {
+                        val last = rutaCoords.last()
+
+                        val loc1 = Location("").apply {
+                            latitude = last.latitude
+                            longitude = last.longitude
+                        }
+                        val loc2 = Location("").apply {
+                            latitude = point.latitude
+                            longitude = point.longitude
+                        }
+
+                        val distancia = loc1.distanceTo(loc2) / 1000.0
+                        distanciaTotal += distancia
                     }
+
+                    rutaCoords.add(point)
                 }
+
+                calcularVelocidad()
             }
         }
 
-        if (ActivityCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.requestLocationUpdates(request, locationCallback, null)
         }
     }
 
-    // Detener y enviar a SubirRutaActivity
+    private fun calcularVelocidad() {
+        val tiempoHoras = (System.currentTimeMillis() - tiempoInicio) / 3600000.0
+        if (tiempoHoras > 0) {
+            velocidadPromedio = distanciaTotal / tiempoHoras
+        }
+    }
+
+    private fun startStepSensor() {
+        if (stepCounterSensor == null) {
+            Toast.makeText(requireContext(), "Tu dispositivo no tiene sensor de pasos", Toast.LENGTH_SHORT).show()
+            return
+        }
+        sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (!recording) return
+
+        if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+            if (pasosInicio == -1) pasosInicio = event.values[0].toInt()
+            pasosActuales = event.values[0].toInt() - pasosInicio
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
     private fun stopRecordingAndGoToSubirRuta() {
         binding.searchBar.visibility = View.VISIBLE
         recording = false
-        binding.btnRuta.text = "Empezar ruta"
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        sensorManager.unregisterListener(this)
+        binding.btnRuta.text = "Empezar ruta"
 
         if (rutaCoords.isEmpty()) {
             Toast.makeText(requireContext(), "No se registraron coordenadas", Toast.LENGTH_SHORT).show()
             return
         }
 
-        Toast.makeText(requireContext(), "Ruta finalizada", Toast.LENGTH_SHORT).show()
-
-        // 1. Mostrar layout morado
         binding.dataLayout.visibility = View.VISIBLE
-
-        // 2. Ocultar botón de ruta
         binding.btnRuta.visibility = View.GONE
 
-        // 3. ANIMACIONES (secuenciales)
-        binding.pasosText.visibility = View.VISIBLE
-        animateNumberTextView(binding.pasosText, 0, pasosTotales, suffix = " pasos") {
-
-            requireActivity().runOnUiThread {
-                binding.distanciaText.visibility = View.VISIBLE
-            }
+        animateNumberTextView(binding.pasosText, 0, pasosActuales, " pasos") {
+            requireActivity().runOnUiThread { binding.distanciaText.visibility = View.VISIBLE }
             animateDecimalTextView(binding.distanciaText, distanciaTotal, " km") {
-
-                requireActivity().runOnUiThread {
-                    binding.velocidadText.visibility = View.VISIBLE
-                }
-                animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h") {
-
-                }
+                requireActivity().runOnUiThread { binding.velocidadText.visibility = View.VISIBLE }
+                animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h")
             }
         }
 
-
-        // 4. Configurar botón continuar
         binding.btnContinuar.setOnClickListener {
             val intent = Intent(requireContext(), SubirRutaActivity::class.java)
             intent.putExtra("coordenadas", ArrayList(rutaCoords))
@@ -207,35 +234,29 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
     }
 
     private fun animateNumberTextView(textView: TextView, from: Int, to: Int, suffix: String = "", onEnd: (() -> Unit)? = null) {
-        val duration = 1500L
-        val increment = if (to > 0) (duration / to).coerceAtLeast(1) else duration
-
         Thread {
             for (i in from..to) {
-                requireActivity().runOnUiThread {
-                    textView.text = "$i$suffix"
-                }
-                Thread.sleep(increment)
+                requireActivity().runOnUiThread { textView.text = "$i$suffix" }
+                Thread.sleep(10)
             }
             onEnd?.invoke()
         }.start()
     }
+
     private fun animateDecimalTextView(textView: TextView, to: Double, suffix: String = "", onEnd: (() -> Unit)? = null) {
         val steps = 100
-        val increment = to / steps
-
+        val inc = to / steps
         Thread {
             for (i in 0..steps) {
-                val value = (i * increment)
+                val value = i * inc
                 requireActivity().runOnUiThread {
                     textView.text = String.format(Locale.US, "%.2f%s", value, suffix)
                 }
-                Thread.sleep(15)
+                Thread.sleep(10)
             }
             onEnd?.invoke()
         }.start()
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()
