@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature android:name="android.hardware.sensor.step counter" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.step detector" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -18,7 +20,9 @@
         android:theme="@style/Theme.MyApplication">
         <activity
             android:name=".VistaRuta"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication.NoActionBar"
+            />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,6 +32,17 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyBJ7KrlU8ubkNX4Uhhi4FZtN9XLOqyrVcE" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
 
         <activity
             android:name=".LoginActivity"
@@ -50,6 +65,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".GaleriaRutaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication.NoActionBar" />
+
+        <activity
+            android:name=".ComentariosActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication.NoActionBar" />
 
     </application>
 
