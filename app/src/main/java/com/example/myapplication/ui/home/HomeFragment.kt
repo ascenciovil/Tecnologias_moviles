@@ -58,10 +58,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private val fotosTomadas = arrayListOf<FotoConCoordenada>()
 
     private var currentLocation: Location? = null
-
-    private val pasosTotales = 523
-    private val distanciaTotal = 1.34   // km de ejemplo
-    private val velocidadPromedio = 4.8 // km/h de ejemplo
+    
     private var pasosInicio = -1
     private var pasosActuales = 0
 
