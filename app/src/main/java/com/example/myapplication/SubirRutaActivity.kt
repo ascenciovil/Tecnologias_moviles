@@ -19,11 +19,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
+import com.example.myapplication.FotoConCoordenada
+
 
 private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
 private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
@@ -36,15 +37,27 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var subirBtn: Button
     private lateinit var cancelarBtn: Button
 
-    private val imageUris = mutableListOf<Uri>()
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
+
+    // ----------------------
+    // AHORA ESTA LISTA ES LA PRINCIPAL
+    // Guarda fotos cámara (con coord) y galería (null coord)
+    // ----------------------
+    private val fotosConCoord = mutableListOf<FotoConCoordenada>()
 
     private val pickImageLauncher =
         registerForActivityResult(
             androidx.activity.result.contract.ActivityResultContracts.GetContent()
         ) { uri: Uri? ->
             uri?.let {
-                imageUris.add(it)
+                // Foto desde GALERÍA → lat/lng = null
+                fotosConCoord.add(
+                    FotoConCoordenada(
+                        uri = it.toString(),
+                        lat = null,
+                        lng = null
+                    )
+                )
                 updateGrid()
             }
         }
@@ -59,12 +72,19 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         subirBtn = findViewById(R.id.subirRuta)
         cancelarBtn = findViewById(R.id.cancelar)
 
+        // Datos recibidos desde la activity anterior
         coordenadas = intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf()
 
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
-        mapFragment?.getMapAsync(this)
+        // Fotos que ya tenían coordenadas
+        val fotosPrevias = intent.getSerializableExtra("fotos") as? ArrayList<FotoConCoordenada> ?: arrayListOf()
+
+        fotosConCoord.addAll(fotosPrevias)
 
         updateGrid()
+
+        supportFragmentManager.findFragmentById(R.id.map)?.let {
+            (it as SupportMapFragment).getMapAsync(this)
+        }
 
         subirBtn.setOnClickListener {
             if (nombreRuta.text.isEmpty() || descripcionRuta.text.isEmpty()) {
@@ -75,15 +95,12 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         cancelarBtn.setOnClickListener {
-            finish()
+            volverAMain()
         }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
-        if (coordenadas.isEmpty()) {
-            Toast.makeText(this, "No se recibieron coordenadas válidas", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (coordenadas.isEmpty()) return
 
         googleMap.addPolyline(
             PolylineOptions().addAll(coordenadas)
@@ -94,11 +111,15 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coordenadas.first(), 15f))
     }
 
+    // ------------------------------------
+    // GRILLA: muestra TODAS las fotos
+    // ------------------------------------
     private fun updateGrid() {
         gridLayout.removeAllViews()
-        for (uri in imageUris) {
+
+        for (foto in fotosConCoord) {
             val imageView = ImageView(this).apply {
-                setImageURI(uri)
+                setImageURI(Uri.parse(foto.uri))
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = 200
                     height = 200
@@ -123,6 +144,10 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         pickImageLauncher.launch("image/*")
     }
 
+
+    // ------------------------------------
+    // SUBIR UNA FOTO A CLOUDINARY
+    // ------------------------------------
     private suspend fun uploadImageToCloudinary(uri: Uri): String? {
         return withContext(Dispatchers.IO) {
             try {
@@ -140,7 +165,8 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                     requestFile
                 )
 
-                val presetBody = CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
+                val presetBody =
+                    CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
 
                 val response = CloudinaryService.api.uploadImage(
                     CLOUDINARY_CLOUD_NAME,
@@ -156,6 +182,10 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+
+    // ------------------------------------
+    // SUBIR LA RUTA COMPLETA A FIRESTORE
+    // ------------------------------------
     private fun subirRuta() {
         val nombre = nombreRuta.text.toString().trim()
         val descripcion = descripcionRuta.text.toString().trim()
@@ -167,37 +197,34 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             mapOf("latitude" to it.latitude, "longitude" to it.longitude)
         }
 
-        val rutaData = hashMapOf(
-            "nombre" to nombre,
-            "descripcion" to descripcion,
-            "userId" to userId,
-            "imagenes" to emptyList<String>(),
-            "rating" to 0,
-            "coordenadas" to coordList
-        )
-
-        if (imageUris.isEmpty()) {
-            firestore.collection("Rutas")
-                .add(rutaData)
-                .addOnSuccessListener {
-                    Toast.makeText(this, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
-                    volverAMain()
-                }
-                .addOnFailureListener {
-                    Toast.makeText(this, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
-                }
-            return
-        }
-
         lifecycleScope.launch {
-            val imagenesUrls = mutableListOf<String>()
 
-            for (uri in imageUris) {
-                val url = uploadImageToCloudinary(uri)
-                if (url != null) imagenesUrls.add(url)
+            // -------------------------
+            // SUBIR TODAS LAS FOTOS (con coordenadas o null)
+            // -------------------------
+            val fotosFinales = mutableListOf<Map<String, Any?>>()
+
+            for (foto in fotosConCoord) {
+
+                val url = uploadImageToCloudinary(Uri.parse(foto.uri))
+
+                fotosFinales.add(
+                    mapOf(
+                        "url" to url,
+                        "lat" to foto.lat,
+                        "lng" to foto.lng
+                    )
+                )
             }
 
-            rutaData["imagenes"] = imagenesUrls
+            val rutaData = hashMapOf(
+                "nombre" to nombre,
+                "descripcion" to descripcion,
+                "userId" to userId,
+                "imagenes" to fotosFinales,
+                "rating" to 0,
+                "coordenadas" to coordList
+            )
 
             firestore.collection("Rutas")
                 .add(rutaData)
@@ -210,6 +237,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
         }
     }
+
 
     private fun volverAMain() {
         val intent = Intent(this, MainActivity::class.java)

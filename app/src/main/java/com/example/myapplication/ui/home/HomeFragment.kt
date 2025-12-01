@@ -28,6 +28,14 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import java.util.Locale
 import android.widget.TextView
+import android.net.Uri
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import java.io.File
+import com.example.myapplication.FotoConCoordenada
+
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
@@ -44,6 +52,16 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private var recording = false
     private val rutaCoords = mutableListOf<LatLng>()
 
+    private lateinit var takePictureLauncher: ActivityResultLauncher<Uri>
+    private var photoUri: Uri? = null
+
+    private val fotosTomadas = arrayListOf<FotoConCoordenada>()
+
+    private var currentLocation: Location? = null
+
+    private val pasosTotales = 523
+    private val distanciaTotal = 1.34   // km de ejemplo
+    private val velocidadPromedio = 4.8 // km/h de ejemplo
     private var pasosInicio = -1
     private var pasosActuales = 0
 
@@ -54,6 +72,26 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        takePictureLauncher = registerForActivityResult(
+            ActivityResultContracts.TakePicture()
+        ) { success ->
+            if (success && photoUri != null) {
+
+                val ubicacionActual = currentLocation  // ← tu variable con la ubicación
+
+                if (ubicacionActual != null) {
+                    val foto = FotoConCoordenada(
+                        uri = photoUri.toString(),
+                        lat = ubicacionActual.latitude,
+                        lng = ubicacionActual.longitude
+                    )
+
+                    fotosTomadas.add(foto)
+                }
+            }
+        }
+
+
 
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -119,6 +157,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private fun startRecording() {
         binding.searchBar.visibility = View.GONE
+        binding.btnFoto.visibility = View.VISIBLE
         recording = true
         rutaCoords.clear()
         pasosActuales = 0
@@ -140,12 +179,17 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             priority = Priority.PRIORITY_HIGH_ACCURACY
         }
 
+        binding.btnFoto.setOnClickListener {
+            openCamera()
+        }
+
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 if (!recording) return
 
                 for (location in result.locations) {
                     val point = LatLng(location.latitude, location.longitude)
+                    currentLocation = location
 
                     // Añadir coordenada
                     if (rutaCoords.isNotEmpty()) {
@@ -204,7 +248,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun stopRecordingAndGoToSubirRuta() {
-        binding.searchBar.visibility = View.VISIBLE
         recording = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         sensorManager.unregisterListener(this)
@@ -229,8 +272,10 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         binding.btnContinuar.setOnClickListener {
             val intent = Intent(requireContext(), SubirRutaActivity::class.java)
             intent.putExtra("coordenadas", ArrayList(rutaCoords))
+            intent.putExtra("fotos", fotosTomadas)
             startActivity(intent)
         }
+
     }
 
     private fun animateNumberTextView(textView: TextView, from: Int, to: Int, suffix: String = "", onEnd: (() -> Unit)? = null) {
@@ -257,6 +302,23 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             onEnd?.invoke()
         }.start()
     }
+
+    private fun openCamera() {
+        val imageFile = File.createTempFile("photo_", ".jpg", requireContext().cacheDir)
+
+        photoUri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.provider",
+            imageFile
+        )
+
+        photoUri?.let { uri ->
+            takePictureLauncher.launch(uri)
+        }
+    }
+
+
+
 
     override fun onDestroyView() {
         super.onDestroyView()
