@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">My Application</string>
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Perfil</string>
+    <string name="title_notifications">Notifications</string>
+    <string name="nombrederuta">NombreDeRuta</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <!-- Nuevos strings para el perfil -->
+    <string name="tu_nombre">Tu Nombre</string>
+    <string name="tu_usuario">@tu_usuario</string>
+    <string name="tu_email_ejemplo">tu.email@ejemplo.com</string>
+    <string name="editar">Editar</string>
+    <string name="configuracion_icono">⚙</string>
+    <string name="sobre_mi">Sobre mí</string>
+    <string name="tu_descripcion_personal">Tu descripción personal…</string>
+    <string name="mis_rutas_publicadas">Mis rutas publicadas</string>
+    <string name="aun_no_rutas">No tienes ninguna ruta publicada</string>
+
+    <!-- Strings para el diálogo de edición -->
+    <string name="nombre_usuario">Nombre de usuario</string>
+    <string name="ingresa_tu_nombre">Ingresa tu nombre</string>
+    <string name="descripcion">Descripción</string>
+    <string name="cuentanos_sobre_ti">Cuéntanos sobre ti…</string>
+    <string name="guardar">Guardar</string>
+    <string name="cancelar">Cancelar</string>
+    <string name="editar_perfil">Editar Perfil</string>
+</resources>
