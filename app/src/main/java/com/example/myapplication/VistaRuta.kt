@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import android.location.Location
 import android.os.Bundle
+import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -20,7 +21,6 @@ import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
 
-
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
     // 🔧 UI
@@ -34,10 +34,10 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var tvAutorRuta: TextView
     private lateinit var tvRatingRuta: TextView
 
-
     // 🔧 Firebase / mapa
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private var rutaId: String? = null
+    private var userId: String? = null  // Variable para almacenar el userId del autor
 
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
@@ -98,7 +98,6 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
-
         // 💬 Botón "Ver comentarios"
         btnComentarios.setOnClickListener {
             val id = rutaId
@@ -133,7 +132,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 val rating = ratingNumber?.toDouble() ?: 0.0
 
                 // userId para buscar el autor
-                val userId = doc.getString("userId") ?: ""
+                userId = doc.getString("userId") ?: ""
 
                 // coordenadas...
                 coordenadasRuta = (doc.get("coordenadas") as? List<*>)
@@ -149,9 +148,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                         }
                     } ?: emptyList()
 
-
                 val imagenesField = doc.get("imagenes")
-
                 imagenesRuta = when (imagenesField) {
                     is List<*> -> imagenesField.mapNotNull { item ->
                         when (item) {
@@ -163,18 +160,21 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                     else -> emptyList()
                 }
 
-
                 toolbar.title = nombre
                 tvDescription.text = descripcion
-
                 tvRatingRuta.text = "⭐ ${String.format(Locale.getDefault(), "%.1f", rating)}"
 
-                if (userId.isNotEmpty()) {
-                    db.collection("Usuarios").document(userId)
+                if (userId!!.isNotEmpty()) {
+                    db.collection("Usuarios").document(userId!!)
                         .get()
                         .addOnSuccessListener { userDoc ->
                             val autor = userDoc.getString("nombre_usuario") ?: "Autor desconocido"
                             tvAutorRuta.text = "Autor: $autor"
+
+                            // Hacer el TextView clickeable
+                            tvAutorRuta.setOnClickListener {
+                                navigateToUserProfile(userId!!, autor)
+                            }
                         }
                         .addOnFailureListener {
                             tvAutorRuta.text = "Autor: desconocido"
@@ -197,6 +197,28 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 ).show()
                 finish()
             }
+    }
+
+    // ==========================
+    //     NAVEGACIÓN AL PERFIL
+    // ==========================
+    private fun navigateToUserProfile(userId: String, userName: String) {
+        Log.d("VistaRuta", "Navigating to user profile: $userName ($userId)")
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            // Pasar datos del usuario
+            putExtra("user_id", userId)
+            putExtra("user_name", userName)
+            putExtra("destination", "dashboard_fragment")
+
+            // IMPORTANTE: Usar estos flags para manejar correctamente el stack
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        startActivity(intent)
+
+        // Opcional: animación suave
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
     // ==========================
@@ -261,5 +283,4 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         tvDistanceLabel.text = "Distancia de la ruta: $kmRounded km"
     }
-
 }
