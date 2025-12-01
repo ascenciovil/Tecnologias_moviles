@@ -91,7 +91,7 @@ class ProfileViewModel : ViewModel() {
     // Cargar rutas reales del usuario desde Firestore
     private fun cargarRutasUsuario(userId: String) {
         db.collection("Rutas")
-            .whereEqualTo("user_id", userId)
+            .whereEqualTo("userId", userId)
             .get()
             .addOnSuccessListener { querySnapshot ->
                 val rutas = mutableListOf<Ruta>()
