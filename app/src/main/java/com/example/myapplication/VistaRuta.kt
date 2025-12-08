@@ -205,20 +205,24 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private fun navigateToUserProfile(userId: String, userName: String) {
         Log.d("VistaRuta", "Navigating to user profile: $userName ($userId)")
 
+        // Crear un intent directo con CLEAR_TASK para reiniciar MainActivity completamente
         val intent = Intent(this, MainActivity::class.java).apply {
-            // Pasar datos del usuario
+            // Esto limpia completamente el stack y crea una nueva tarea
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
+
+            // Pasar los datos del usuario
             putExtra("user_id", userId)
             putExtra("user_name", userName)
             putExtra("destination", "dashboard_fragment")
-
-            // IMPORTANTE: Usar estos flags para manejar correctamente el stack
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("force_reload", true) // Bandera para forzar recarga
         }
 
+        // Iniciar la actividad
         startActivity(intent)
 
-        // Opcional: animación suave
+        // Animación de transición suave
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+
     }
 
     // ==========================

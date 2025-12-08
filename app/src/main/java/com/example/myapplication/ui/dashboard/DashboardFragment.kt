@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.dashboard
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -22,42 +23,111 @@ class DashboardFragment : Fragment() {
     private lateinit var dashboardViewModel: DashboardViewModel
     private val auth = FirebaseAuth.getInstance()
 
+    // Variable para controlar si ya se procesó un usuario
+    private var lastProcessedUserId: String? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        // Siempre crear un nuevo ViewModel para cada instancia
         dashboardViewModel = ViewModelProvider(this).get(DashboardViewModel::class.java)
 
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        // Obtener datos del usuario desde los argumentos
-        val userId = arguments?.getString("user_id")
-        val userName = arguments?.getString("user_name")
+        // ========== OBTENER USER ID DE MÚLTIPLES FUENTES ==========
 
-        Log.d("DashboardFragment", "===== FRAGMENT CREADO =====")
-        Log.d("DashboardFragment", "User ID recibido: $userId")
-        Log.d("DashboardFragment", "User Name recibido: $userName")
+        var userId: String? = null
+        var userName: String? = null
+        var forceReload = false
+        var fromDeepLink = false
 
-        if (userId != null && userId.isNotEmpty()) {
+        // 1. Primero verificar argumentos del fragment (viene de navegación)
+        arguments?.let { args ->
+            userId = args.getString("user_id")
+            userName = args.getString("user_name")
+            forceReload = args.getBoolean("force_reload", false)
+            fromDeepLink = args.getBoolean("from_deep_link", false)
+
+            Log.d("DashboardFragment", "📦 Argumentos recibidos:")
+            Log.d("DashboardFragment", "  - userId: '$userId'")
+            Log.d("DashboardFragment", "  - userName: '$userName'")
+            Log.d("DashboardFragment", "  - forceReload: $forceReload")
+            Log.d("DashboardFragment", "  - fromDeepLink: $fromDeepLink")
+        }
+
+        // 2. Si no hay en argumentos, verificar el intent de la Activity
+        if ((userId == null || userId.isEmpty()) && !fromDeepLink) {
+            requireActivity().intent?.extras?.let { extras ->
+                userId = extras.getString("user_id")
+                userName = extras.getString("user_name")
+                forceReload = extras.getBoolean("force_reload", false)
+
+                Log.d("DashboardFragment", "📱 Intent extras:")
+                Log.d("DashboardFragment", "  - userId: '$userId'")
+                Log.d("DashboardFragment", "  - userName: '$userName'")
+                Log.d("DashboardFragment", "  - forceReload: $forceReload")
+            }
+        }
+
+        // ========== DECIDIR QUÉ HACER ==========
+
+        Log.d("DashboardFragment", "=== RESUMEN ===")
+        Log.d("DashboardFragment", "userId obtenido: '$userId'")
+        Log.d("DashboardFragment", "lastProcessedUserId: '$lastProcessedUserId'")
+        Log.d("DashboardFragment", "forceReload: $forceReload")
+
+        // Si forceReload es true, forzar recarga
+        if (forceReload) {
+            Log.d("DashboardFragment", "🔁 Forzando recarga...")
+            lastProcessedUserId = null
+        }
+
+        // Verificar si necesitamos cargar un nuevo usuario
+        val shouldLoadNewUser = when {
+            userId == null || userId.isEmpty() -> {
+                Log.d("DashboardFragment", "⚠️ No hay userId, cargando perfil por defecto")
+                false
+            }
+            userId != lastProcessedUserId -> {
+                Log.d("DashboardFragment", "🔄 Nuevo usuario detectado: $userId (anterior: $lastProcessedUserId)")
+                true
+            }
+            else -> {
+                Log.d("DashboardFragment", "✅ Mismo usuario, manteniendo datos actuales")
+                false
+            }
+        }
+
+        if (shouldLoadNewUser) {
+            // Guardar el userId procesado
+            lastProcessedUserId = userId
+
             // Cargar datos del usuario específico
-            cargarDatosUsuario(userId, userName)
-        } else {
-            // Cargar datos del usuario por defecto
-            Log.d("DashboardFragment", "Cargando perfil por defecto (sin userId)")
+            cargarDatosUsuario(userId!!, userName)
+        } else if (userId == null || userId.isEmpty()) {
+            // Cargar perfil por defecto
             cargarDatosPorDefecto()
         }
+        // Si es el mismo usuario, no hacemos nada (ya están cargados los datos)
 
         return root
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupObservers()
+    }
+
     private fun cargarDatosUsuario(userId: String, userName: String?) {
-        Log.d("DashboardFragment", "Inicializando ViewModel con userId: $userId")
+        Log.d("DashboardFragment", "🚀 Inicializando ViewModel con userId: $userId")
 
         // Inicializar ViewModel con el userId
         dashboardViewModel.init(userId)
 
+        // Configurar observadores
         setupObservers()
 
         // Cargar estado de seguimiento si hay un usuario logueado
@@ -71,9 +141,8 @@ class DashboardFragment : Fragment() {
     }
 
     private fun cargarDatosPorDefecto() {
-        Log.d("DashboardFragment", "Cargando datos por defecto")
+        Log.d("DashboardFragment", "📋 Cargando datos por defecto")
         dashboardViewModel.cargarDatosPorDefecto()
-        setupObservers()
 
         // Si es el perfil por defecto, ocultar botón de seguir
         binding.botonSeguir.visibility = View.GONE
@@ -130,6 +199,28 @@ class DashboardFragment : Fragment() {
             binding.textEmail.text = email
         }
 
+        // NUEVO: Observar contador de seguidores
+        dashboardViewModel.seguidoresCount.observe(viewLifecycleOwner) { count ->
+            Log.d("DashboardFragment", "Seguidores count: $count")
+            binding.textSeguidoresCount.text = count.toString()
+
+            // Hacer clickeable para ver lista de seguidores
+            binding.textSeguidoresCount.setOnClickListener {
+                mostrarListaSeguidores()
+            }
+        }
+
+        // NUEVO: Observar contador de siguiendo
+        dashboardViewModel.siguiendoCount.observe(viewLifecycleOwner) { count ->
+            Log.d("DashboardFragment", "Siguiendo count: $count")
+            binding.textSiguiendoCount.text = count.toString()
+
+            // Hacer clickeable para ver lista de siguiendo
+            binding.textSiguiendoCount.setOnClickListener {
+                mostrarListaSiguiendo()
+            }
+        }
+
         dashboardViewModel.textoBoton.observe(viewLifecycleOwner) { textoBoton ->
             Log.d("DashboardFragment", "Actualizando texto botón: $textoBoton")
             binding.botonSeguir.text = textoBoton
@@ -139,9 +230,11 @@ class DashboardFragment : Fragment() {
             Log.d("DashboardFragment", "Estado de seguimiento: $estaSiguiendo")
             // Cambiar el color del botón basado en el estado
             if (estaSiguiendo) {
-                binding.botonSeguir.setBackgroundColor(0xFFE0E0E0.toInt())
-                binding.botonSeguir.setTextColor(0xFF000000.toInt())
+                // Cuando está siguiendo: fondo gris oscuro, texto blanco
+                binding.botonSeguir.setBackgroundColor(0xFF666666.toInt())
+                binding.botonSeguir.setTextColor(0xFFFFFFFF.toInt())
             } else {
+                // Cuando no está siguiendo: fondo azul, texto blanco
                 binding.botonSeguir.setBackgroundColor(0xFF2196F3.toInt())
                 binding.botonSeguir.setTextColor(0xFFFFFFFF.toInt())
             }
@@ -165,7 +258,7 @@ class DashboardFragment : Fragment() {
         // Configurar el click listener del botón de seguir
         binding.botonSeguir.setOnClickListener {
             val currentUserId = auth.currentUser?.uid
-            val targetUserId = arguments?.getString("user_id")
+            val targetUserId = lastProcessedUserId ?: arguments?.getString("user_id")
 
             Log.d("DashboardFragment", "Botón seguir clickeado")
             Log.d("DashboardFragment", "Usuario actual: $currentUserId")
@@ -181,6 +274,50 @@ class DashboardFragment : Fragment() {
         // Botón de reintentar conexión
         binding.retryButton.setOnClickListener {
             retryConnection()
+        }
+
+        // Hacer que los textos "Seguidores" y "Siguiendo" sean clickeables
+        val seguidoresContainer = binding.textSeguidoresCount.parent as? LinearLayout
+        seguidoresContainer?.let { container ->
+            // El contador ya es clickeable en setupObservers()
+            // También hacer clickeable el label "Seguidores" (índice 1 es el TextView del label)
+            if (container.childCount > 1) {
+                val seguidoresLabel = container.getChildAt(1) as? TextView
+                seguidoresLabel?.setOnClickListener {
+                    mostrarListaSeguidores()
+                }
+            }
+        }
+
+        val siguiendoContainer = binding.textSiguiendoCount.parent as? LinearLayout
+        siguiendoContainer?.let { container ->
+            // El contador ya es clickeable en setupObservers()
+            // También hacer clickeable el label "Siguiendo" (índice 1 es el TextView del label)
+            if (container.childCount > 1) {
+                val siguiendoLabel = container.getChildAt(1) as? TextView
+                siguiendoLabel?.setOnClickListener {
+                    mostrarListaSiguiendo()
+                }
+            }
+        }
+    }
+
+    // Funciones para mostrar listas de seguidores/siguiendo
+    private fun mostrarListaSeguidores() {
+        val userId = lastProcessedUserId ?: arguments?.getString("user_id")
+        if (userId != null) {
+            Log.d("DashboardFragment", "Mostrando lista de seguidores para: $userId")
+            // Puedes crear una nueva actividad o dialog para mostrar la lista
+            Toast.makeText(requireContext(), "Lista de seguidores (implementar)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun mostrarListaSiguiendo() {
+        val userId = lastProcessedUserId ?: arguments?.getString("user_id")
+        if (userId != null) {
+            Log.d("DashboardFragment", "Mostrando lista de siguiendo para: $userId")
+            // Puedes crear una nueva actividad o dialog para mostrar la lista
+            Toast.makeText(requireContext(), "Lista de siguiendo (implementar)", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -223,7 +360,7 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    private fun setupRutasList(rutas: List<Ruta>) {
+    private fun setupRutasList(rutas: List<com.example.myapplication.ui.dashboard.Ruta>) {
         val layoutRutas = binding.layoutRutas
         layoutRutas.removeAllViews()
 
@@ -322,7 +459,7 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    private fun setupLogrosList(logros: List<Logro>) {
+    private fun setupLogrosList(logros: List<com.example.myapplication.ui.dashboard.Logro>) {
         val layoutLogros = binding.layoutLogros
         layoutLogros.removeAllViews()
 
@@ -348,7 +485,7 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    private fun createLogroCard(logro: Logro, index: Int): LinearLayout {
+    private fun createLogroCard(logro: com.example.myapplication.ui.dashboard.Logro, index: Int): LinearLayout {
         return LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
@@ -447,5 +584,20 @@ class DashboardFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+        // No resetear lastProcessedUserId aquí para mantenerlo entre recreaciones
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // Guardar el último userId procesado
+        lastProcessedUserId?.let {
+            outState.putString("lastProcessedUserId", it)
+        }
+    }
+
+    override fun onViewStateRestored(savedInstanceState: Bundle?) {
+        super.onViewStateRestored(savedInstanceState)
+        // Restaurar el último userId procesado
+        lastProcessedUserId = savedInstanceState?.getString("lastProcessedUserId")
     }
 }

@@ -26,6 +26,7 @@ class RutasFragment : Fragment() {
     data class Ruta(
         val nombre: String = "",
         val autor: String = "",
+        val autorId: String = "",
         val rating: Double = 0.0,
         val idRuta: String = ""
     )
@@ -43,6 +44,7 @@ class RutasFragment : Fragment() {
             // Al hacer click, abrimos VistaRuta pasando el ID del documento
             val intent = Intent(requireContext(), VistaRuta::class.java)
             intent.putExtra("ruta_id", ruta.idRuta)
+            intent.putExtra("autor_id", ruta.autorId)
             startActivity(intent)
         }
         recyclerView.adapter = adapter
@@ -78,6 +80,7 @@ class RutasFragment : Fragment() {
                                     Ruta(
                                         nombre = nombre,
                                         autor = autor,
+                                        autorId = idUsuario,
                                         rating = rating,
                                         idRuta = idRuta
                                     )

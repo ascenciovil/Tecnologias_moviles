@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var navController: NavController
+    private var deepLinkProcessed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +39,7 @@ class MainActivity : AppCompatActivity() {
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
 
-        // IMPORTANTE: Configurar navegación manualmente
+        // Configurar navegación manualmente
         navView.setOnItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.navigation_home -> {
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.navigation_dashboard -> {
+                    // Navegar al dashboard sin argumentos (perfil por defecto)
                     navController.navigate(R.id.navigation_dashboard)
                     true
                 }
@@ -68,57 +70,96 @@ class MainActivity : AppCompatActivity() {
         // También configurar el setupWithNavController para mantener consistencia
         navView.setupWithNavController(navController)
 
-        // Manejar intent para navegar directamente al DashboardFragment
+        // Resetear flag
+        deepLinkProcessed = false
+
+        // Manejar deep link SIEMPRE al crear la actividad
         handleDeepLink()
     }
 
+    // CORRECCIÓN: Cambiar el parámetro de Intent? a Intent
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        deepLinkProcessed = false
         handleDeepLink()
     }
 
     private fun handleDeepLink() {
+        // Evitar procesar múltiples veces
+        if (deepLinkProcessed) {
+            Log.d("MainActivity", "Deep link ya procesado, ignorando")
+            return
+        }
+
         val userId = intent.getStringExtra("user_id")
         val destination = intent.getStringExtra("destination")
+        val forceReload = intent.getBooleanExtra("force_reload", false)
 
-        Log.d("MainActivity", "handleDeepLink - userId: $userId, destination: $destination")
+        Log.d("MainActivity", "=== DEEP LINK DETECTADO ===")
+        Log.d("MainActivity", "userId: $userId")
+        Log.d("MainActivity", "destination: $destination")
+        Log.d("MainActivity", "forceReload: $forceReload")
+        Log.d("MainActivity", "=== ===")
 
-        if (destination == "dashboard_fragment" && userId != null) {
-            // Navegar al DashboardFragment
-            Log.d("MainActivity", "Navigating to dashboard with user: $userId")
-
-            // Crear bundle con los datos del usuario
-            val bundle = Bundle().apply {
-                putString("user_id", userId)
-                putString("user_name", intent.getStringExtra("user_name"))
-            }
+        if (destination == "dashboard_fragment" && userId != null && userId.isNotEmpty()) {
+            Log.d("MainActivity", "Procesando navegación al perfil de: $userId")
 
             try {
-                // IMPORTANTE: Primero seleccionar el ítem
-                binding.navView.selectedItemId = R.id.navigation_dashboard
-
-                // Luego navegar (esto puede fallar si ya está en ese fragment)
-                val currentDestination = navController.currentDestination
-                if (currentDestination?.id != R.id.navigation_dashboard) {
-                    navController.navigate(R.id.navigation_dashboard, bundle)
-                } else {
-                    // Si ya está en dashboard, actualizar el fragment existente
-                    val fragment = supportFragmentManager.findFragmentByTag("dashboard")
-                    if (fragment is com.example.myapplication.ui.dashboard.DashboardFragment) {
-                        fragment.arguments = bundle
+                // Esperar a que el navController esté listo
+                binding.root.post {
+                    // Crear bundle con todos los datos
+                    val bundle = Bundle().apply {
+                        putString("user_id", userId)
+                        putString("user_name", intent.getStringExtra("user_name") ?: "")
+                        putBoolean("force_reload", forceReload)
+                        putBoolean("from_deep_link", true) // Para identificar que viene de deep link
                     }
+
+                    Log.d("MainActivity", "Bundle creado: $bundle")
+
+                    // Navegar al dashboard con los argumentos
+                    // Usar popBackStack para limpiar si ya está en dashboard
+                    navController.popBackStack(R.id.navigation_dashboard, false)
+
+                    // Navegar con los argumentos
+                    navController.navigate(R.id.navigation_dashboard, bundle)
+
+                    // Seleccionar el ítem en el bottom nav
+                    binding.navView.selectedItemId = R.id.navigation_dashboard
+
+                    // Marcar como procesado
+                    deepLinkProcessed = true
+
+                    Log.d("MainActivity", "✅ Navegación completada exitosamente")
+
+                    // Limpiar extras después de procesar (opcional)
+                    clearIntentExtras()
                 }
 
-                // Limpiar los extras para que no se repita la navegación
-                intent.removeExtra("destination")
-                intent.removeExtra("user_id")
-                intent.removeExtra("user_name")
-
-                Log.d("MainActivity", "Navigation completed successfully")
             } catch (e: Exception) {
-                Log.e("MainActivity", "Navigation error: ${e.message}", e)
+                Log.e("MainActivity", "❌ Error en navegación: ${e.message}", e)
+                // Intentar de nuevo después de un delay
+                binding.root.postDelayed({
+                    handleDeepLink()
+                }, 500)
             }
+        } else {
+            Log.d("MainActivity", "No hay deep link válido o userId vacío")
+        }
+    }
+
+    private fun clearIntentExtras() {
+        // No podemos modificar directamente los extras, pero podemos crear un nuevo intent
+        val newIntent = Intent(this, MainActivity::class.java)
+        setIntent(newIntent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Verificar si hay que procesar un deep link al volver a la actividad
+        if (!deepLinkProcessed) {
+            handleDeepLink()
         }
     }
 }
