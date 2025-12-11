@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
             setOf(
                 R.id.navigation_home,
                 R.id.navigation_profile,
-                R.id.navigation_dashboard,
                 R.id.navigation_rutas,
                 R.id.navigation_notifications
             )
@@ -48,11 +47,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 R.id.navigation_profile -> {
                     navController.navigate(R.id.navigation_profile)
-                    true
-                }
-                R.id.navigation_dashboard -> {
-                    // Navegar al dashboard sin argumentos (perfil por defecto)
-                    navController.navigate(R.id.navigation_dashboard)
                     true
                 }
                 R.id.navigation_rutas -> {
