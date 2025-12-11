@@ -20,7 +20,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
-import android.util.Log
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
