@@ -198,6 +198,7 @@ class DashboardViewModel : ViewModel() {
                 val rutas = mutableListOf<Ruta>()
 
                 for (document in querySnapshot.documents) {
+                    val id = document.id  // Obtener el ID del documento
                     val titulo = document.getString("nombre")
                         ?: document.getString("titulo")
                         ?: "Ruta sin título"
@@ -209,7 +210,10 @@ class DashboardViewModel : ViewModel() {
                         ?: calcularDuracionEstimada(document)
                         ?: "Tiempo no especificado"
 
-                    rutas.add(Ruta(titulo, descripcion, duracion))
+                    // Obtener userId del autor (puede ser diferente si estás en otro perfil)
+                    val autorId = document.getString("userId") ?: userId
+
+                    rutas.add(Ruta(id, titulo, descripcion, duracion, autorId))
                 }
 
                 _rutasPublicadas.value = rutas
@@ -478,9 +482,11 @@ class DashboardViewModel : ViewModel() {
 }
 
 data class Ruta(
+    val id: String,
     val titulo: String,
     val descripcion: String,
-    val duracion: String
+    val duracion: String,
+    val autorId: String = ""
 )
 
 data class Logro(

@@ -1,6 +1,7 @@
 package com.example.myapplication.ui.dashboard
 
 import android.content.Intent
+import com.example.myapplication.VistaRuta
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -380,7 +381,7 @@ class DashboardFragment : Fragment() {
             layoutRutas.addView(textView)
         } else {
             rutas.forEachIndexed { index, ruta ->
-                // Card para cada ruta
+                // Card para cada ruta - AHORA CLICKEABLE
                 val rutaCard = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
@@ -393,6 +394,25 @@ class DashboardFragment : Fragment() {
                             topMargin = 12.dpToPx()
                         }
                     }
+
+                    // Hacer la card clickeable
+                    setOnClickListener {
+                        // Navegar a la VistaRuta
+                        val intent = Intent(requireContext(), VistaRuta::class.java)
+                        intent.putExtra("ruta_id", ruta.id)
+                        intent.putExtra("autor_id", ruta.autorId)
+                        startActivity(intent)
+
+                        // Animación de transición
+                        requireActivity().overridePendingTransition(
+                            android.R.anim.fade_in,
+                            android.R.anim.fade_out
+                        )
+                    }
+
+                    // Hacerla clickeable
+                    isClickable = true
+                    isFocusable = true
 
                     if (dashboardViewModel.isOnline.value == false) {
                         alpha = 0.8f
@@ -442,6 +462,27 @@ class DashboardFragment : Fragment() {
                     }
                     rutaCard.addView(descripcionTextView)
                 }
+
+                // Icono de flecha para indicar que es clickeable
+                val flechaLayout = LinearLayout(requireContext()).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = 8.dpToPx()
+                    }
+                }
+
+                val flechaTextView = TextView(requireContext()).apply {
+                    text = "Ver ruta →"
+                    textSize = 14f
+                    setTextColor(0xFF4285F4.toInt())
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                flechaLayout.addView(flechaTextView)
+                rutaCard.addView(flechaLayout)
 
                 // Indicador de datos en cache
                 if (dashboardViewModel.isOnline.value == false) {
