@@ -193,6 +193,7 @@ class DashboardViewModel : ViewModel() {
     private fun cargarRutasUsuario(userId: String) {
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
+            .whereEqualTo("visible", true)
             .get()
             .addOnSuccessListener { querySnapshot ->
                 val rutas = mutableListOf<Ruta>()

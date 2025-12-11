@@ -55,7 +55,9 @@ class RutasFragment : Fragment() {
     }
 
     private fun cargarRutas() {
-        db.collection("Rutas").get()
+        db.collection("Rutas")
+            .whereEqualTo("visible", true)
+            .get()
             .addOnSuccessListener { result ->
                 rutasList.clear()
 

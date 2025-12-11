@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.example.myapplication.databinding.FragmentProfileBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.auth.FirebaseAuth
 
 class ProfileFragment : Fragment() {
@@ -56,6 +57,15 @@ class ProfileFragment : Fragment() {
             // Hacer clickeable para ver lista de siguiendo
             binding.textSiguiendoCount.setOnClickListener {
                 mostrarListaSiguiendo()
+            }
+        }
+
+        // Observar mensajes del ViewModel (CORRECCIÓN: usar value directamente)
+        profileViewModel.mensaje.observe(viewLifecycleOwner) { mensaje ->
+            mensaje?.let {
+                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                // No podemos limpiar el mensaje así porque es LiveData
+                // En su lugar, manejamos el mensaje una sola vez
             }
         }
 
@@ -163,10 +173,14 @@ class ProfileFragment : Fragment() {
 
     // Actualizar UI según estado de conexión
     private fun updateUIForConnectionState(isOnline: Boolean) {
-        if (!isOnline && !(profileViewModel.isLoading.value ?: true)) {
-            binding.offlineIndicator.visibility = View.VISIBLE
-            binding.botonEditar.alpha = 0.6f
-            binding.botonEditar.isEnabled = false
+        if (!isOnline) {
+            // Verificar si no está cargando
+            val isLoading = profileViewModel.isLoading.value ?: true
+            if (!isLoading) {
+                binding.offlineIndicator.visibility = View.VISIBLE
+                binding.botonEditar.alpha = 0.6f
+                binding.botonEditar.isEnabled = false
+            }
         } else {
             binding.offlineIndicator.visibility = View.GONE
             binding.botonEditar.alpha = 1.0f
@@ -195,7 +209,8 @@ class ProfileFragment : Fragment() {
         binding.offlineIndicator.visibility = View.VISIBLE
 
         // Mostrar toast informativo solo la primera vez
-        if (profileViewModel.isOnline.value == false) {
+        val isOnline = profileViewModel.isOnline.value ?: true
+        if (!isOnline) {
             Toast.makeText(
                 requireContext(),
                 "Modo offline activado. Los datos pueden no estar actualizados.",
@@ -210,8 +225,11 @@ class ProfileFragment : Fragment() {
         val editDescripcion = dialogView.findViewById<EditText>(R.id.edit_descripcion)
 
         // Establecer valores actuales
-        editNombre.setText(profileViewModel.nombre.value)
-        editDescripcion.setText(profileViewModel.descripcion.value)
+        val nombreActual = profileViewModel.nombre.value ?: ""
+        val descripcionActual = profileViewModel.descripcion.value ?: ""
+
+        editNombre.setText(nombreActual)
+        editDescripcion.setText(descripcionActual)
 
         val dialog = AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.editar_perfil))
@@ -224,7 +242,8 @@ class ProfileFragment : Fragment() {
                     profileViewModel.actualizarPerfil(nuevoNombre, nuevaDescripcion)
 
                     // Mostrar mensaje según el estado de conexión
-                    if (profileViewModel.isOnline.value == false) {
+                    val isOnline = profileViewModel.isOnline.value ?: true
+                    if (!isOnline) {
                         Toast.makeText(
                             requireContext(),
                             "Cambios guardados localmente. Se sincronizarán cuando haya conexión.",
@@ -241,7 +260,8 @@ class ProfileFragment : Fragment() {
         // Personalizar el botón positivo si estamos offline
         dialog.setOnShowListener {
             val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            if (profileViewModel.isOnline.value == false) {
+            val isOnline = profileViewModel.isOnline.value ?: true
+            if (!isOnline) {
                 positiveButton.text = "Guardar (Offline)"
                 positiveButton.setTextColor(0xFFFFA000.toInt()) // Color naranja
             }
@@ -254,7 +274,8 @@ class ProfileFragment : Fragment() {
 
         if (rutas.isEmpty()) {
             val textView = TextView(requireContext()).apply {
-                text = if (profileViewModel.isOnline.value == false) {
+                val isOnline = profileViewModel.isOnline.value ?: true
+                text = if (!isOnline) {
                     "No se pueden cargar rutas sin conexión"
                 } else {
                     "No tienes ninguna ruta publicada"
@@ -268,7 +289,7 @@ class ProfileFragment : Fragment() {
             layoutRutas.addView(textView)
         } else {
             rutas.forEachIndexed { index, ruta ->
-                // Card para cada ruta - AHORA CLICKEABLE
+                // Card para cada ruta - AHORA CON BOTÓN DE ELIMINAR
                 val rutaCard = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
@@ -282,30 +303,8 @@ class ProfileFragment : Fragment() {
                         }
                     }
 
-                    // Hacer la card clickeable
-                    setOnClickListener {
-                        // Navegar a la VistaRuta
-                        val intent = Intent(requireContext(), VistaRuta::class.java)
-                        intent.putExtra("ruta_id", ruta.id)
-
-                        // Obtener el ID del usuario actual
-                        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-                        intent.putExtra("autor_id", userId)
-
-                        startActivity(intent)
-
-                        // Animación de transición
-                        requireActivity().overridePendingTransition(
-                            android.R.anim.fade_in,
-                            android.R.anim.fade_out
-                        )
-                    }
-
-                    // Hacerla clickeable
-                    isClickable = true
-                    isFocusable = true
-
-                    if (profileViewModel.isOnline.value == false) {
+                    val isOnline = profileViewModel.isOnline.value ?: true
+                    if (!isOnline) {
                         alpha = 0.8f
                     }
                 }
@@ -354,29 +353,75 @@ class ProfileFragment : Fragment() {
                     rutaCard.addView(descripcionTextView)
                 }
 
-                // Icono de flecha para indicar que es clickeable
-                val flechaLayout = LinearLayout(requireContext()).apply {
+                // Fila inferior con botones de acción
+                val filaInferior = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply {
-                        topMargin = 8.dpToPx()
+                        topMargin = 12.dpToPx()
                     }
                 }
 
-                val flechaTextView = TextView(requireContext()).apply {
-                    text = "Ver ruta →"
+                // Botón para ver la ruta
+                val botonVer = TextView(requireContext()).apply {
+                    text = "👁️ Ver ruta"
                     textSize = 14f
                     setTextColor(0xFF4285F4.toInt())
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setPadding(16.dpToPx(), 8.dpToPx(), 16.dpToPx(), 8.dpToPx())
+                    background = ContextCompat.getDrawable(requireContext(), R.drawable.button_outline)
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                    ).apply {
+                        marginEnd = 8.dpToPx()
+                    }
+                    isClickable = true
+
+                    setOnClickListener {
+                        // Navegar a la VistaRuta
+                        val intent = Intent(requireContext(), VistaRuta::class.java)
+                        intent.putExtra("ruta_id", ruta.id)
+                        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                        intent.putExtra("autor_id", userId)
+                        startActivity(intent)
+                        requireActivity().overridePendingTransition(
+                            android.R.anim.fade_in,
+                            android.R.anim.fade_out
+                        )
+                    }
                 }
 
-                flechaLayout.addView(flechaTextView)
-                rutaCard.addView(flechaLayout)
+                // Botón para ocultar la ruta
+                val botonOcultar = TextView(requireContext()).apply {
+                    text = "🗑️ Ocultar"
+                    textSize = 14f
+                    setTextColor(0xFFF44336.toInt())
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setPadding(16.dpToPx(), 8.dpToPx(), 16.dpToPx(), 8.dpToPx())
+                    background = ContextCompat.getDrawable(requireContext(), R.drawable.button_outline_red)
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                    )
+                    isClickable = true
+
+                    setOnClickListener {
+                        mostrarDialogoConfirmacionOcultar(ruta)
+                    }
+                }
+
+                filaInferior.addView(botonVer)
+                filaInferior.addView(botonOcultar)
+                rutaCard.addView(filaInferior)
 
                 // Indicador de datos en cache
-                if (profileViewModel.isOnline.value == false) {
+                val isOnline = profileViewModel.isOnline.value ?: true
+                if (!isOnline) {
                     val cacheIndicator = TextView(requireContext()).apply {
                         text = "📱 Datos en cache"
                         textSize = 12f
@@ -391,6 +436,18 @@ class ProfileFragment : Fragment() {
         }
     }
 
+    // NUEVO: Mostrar diálogo de confirmación para ocultar ruta
+    private fun mostrarDialogoConfirmacionOcultar(ruta: com.example.myapplication.ui.profile.Ruta) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Ocultar ruta")
+            .setMessage("¿Estás seguro de que quieres ocultar la ruta '${ruta.titulo}'?\n\nLa ruta no se eliminará permanentemente, solo dejará de ser visible en tu perfil.")
+            .setPositiveButton("Ocultar") { dialog, which ->
+                profileViewModel.ocultarRuta(ruta.id)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     // Configurar la lista de logros
     private fun setupLogrosList(logros: List<Logro>) {
         val layoutLogros = binding.layoutLogros
@@ -398,7 +455,8 @@ class ProfileFragment : Fragment() {
 
         if (logros.isEmpty()) {
             val textView = TextView(requireContext()).apply {
-                text = if (profileViewModel.isOnline.value == false) {
+                val isOnline = profileViewModel.isOnline.value ?: true
+                text = if (!isOnline) {
                     "No se pueden cargar logros sin conexión"
                 } else {
                     "Aún no tienes logros desbloqueados"
@@ -434,7 +492,8 @@ class ProfileFragment : Fragment() {
             background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
 
             // Indicador visual para datos offline
-            if (profileViewModel.isOnline.value == false && !logro.obtenido) {
+            val isOnline = profileViewModel.isOnline.value ?: true
+            if (!isOnline && !logro.obtenido) {
                 alpha = 0.7f
             }
 
@@ -475,7 +534,7 @@ class ProfileFragment : Fragment() {
             }
 
             // Indicador de progreso offline para logros no obtenidos
-            if (profileViewModel.isOnline.value == false && !logro.obtenido) {
+            if (!isOnline && !logro.obtenido) {
                 val offlineInfo = TextView(requireContext()).apply {
                     text = "Conecta para desbloquear"
                     textSize = 12f

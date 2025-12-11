@@ -4,8 +4,10 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
+import android.util.Log
 
 class ProfileViewModel : ViewModel() {
 
@@ -71,6 +73,10 @@ class ProfileViewModel : ViewModel() {
     }
     val showOfflineMessage: LiveData<Boolean> = _showOfflineMessage
 
+    // NUEVO: Para mostrar mensajes de éxito/error
+    private val _mensaje = MutableLiveData<String?>()
+    val mensaje: LiveData<String?> = _mensaje
+
     // Cargar datos del usuario desde Firestore
     fun cargarDatosUsuario() {
         val currentUser = auth.currentUser
@@ -127,8 +133,15 @@ class ProfileViewModel : ViewModel() {
 
     // Cargar rutas reales del usuario desde Firestore
     private fun cargarRutasUsuario(userId: String) {
+
+
+
+
+
+
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
+            .whereEqualTo("visible", true) // NUEVO: Solo cargar rutas visibles
             .get()
             .addOnSuccessListener { querySnapshot ->
                 val rutas = mutableListOf<Ruta>()
@@ -153,6 +166,79 @@ class ProfileViewModel : ViewModel() {
                 // En modo offline, mostrar lista vacía o datos cacheados
                 _rutasPublicadas.value = emptyList()
             }
+    }
+
+    // NUEVO: Función para ocultar/archivar una ruta
+    fun ocultarRuta(rutaId: String) {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            _isLoading.value = true
+
+            db.collection("Rutas").document(rutaId)
+                .update("visible", false) // Cambiar a false para ocultar
+                .addOnSuccessListener {
+                    Log.d("ProfileViewModel", "✅ Ruta $rutaId ocultada exitosamente")
+
+                    // Actualizar la lista localmente
+                    val rutasActuales = _rutasPublicadas.value ?: emptyList()
+                    val nuevasRutas = rutasActuales.filter { it.id != rutaId }
+                    _rutasPublicadas.value = nuevasRutas
+
+                    // Mostrar mensaje de éxito
+                    _mensaje.value = "Ruta ocultada exitosamente"
+
+                    _isLoading.value = false
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("ProfileViewModel", "❌ Error al ocultar ruta: ${exception.message}")
+                    _mensaje.value = "Error al ocultar la ruta: ${exception.message}"
+                    _isLoading.value = false
+                }
+        }
+    }
+
+    // NUEVO: Función para obtener rutas ocultas (si se quiere implementar recuperación)
+    fun cargarRutasOcultas(userId: String) {
+        db.collection("Rutas")
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("visible", false)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val rutasOcultas = mutableListOf<Ruta>()
+
+                for (document in querySnapshot.documents) {
+                    val id = document.id
+                    val titulo = document.getString("nombre") ?: "Ruta sin título"
+                    val descripcion = document.getString("descripcion") ?: ""
+                    val duracion = document.get("duracion")?.toString() ?: "Tiempo no especificado"
+
+                    rutasOcultas.add(Ruta(id, titulo, descripcion, duracion))
+                }
+
+                Log.d("ProfileViewModel", "📂 Rutas ocultas encontradas: ${rutasOcultas.size}")
+            }
+            .addOnFailureListener { exception ->
+                Log.e("ProfileViewModel", "Error al cargar rutas ocultas: ${exception.message}")
+            }
+    }
+
+    // NUEVO: Función para restaurar una ruta oculta
+    fun restaurarRuta(rutaId: String) {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            db.collection("Rutas").document(rutaId)
+                .update("visible", true)
+                .addOnSuccessListener {
+                    Log.d("ProfileViewModel", "✅ Ruta $rutaId restaurada exitosamente")
+                    // Recargar rutas para incluir la restaurada
+                    cargarRutasUsuario(currentUser.uid)
+                    _mensaje.value = "Ruta restaurada exitosamente"
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("ProfileViewModel", "❌ Error al restaurar ruta: ${exception.message}")
+                    _mensaje.value = "Error al restaurar la ruta"
+                }
+        }
     }
 
     // Cargar logros del usuario desde la subcolección
@@ -323,6 +409,7 @@ class ProfileViewModel : ViewModel() {
 
                     _isOnline.value = true
                     _showOfflineMessage.value = false
+                    _mensaje.value = "Perfil actualizado exitosamente"
                 }
                 .addOnFailureListener { exception ->
                     // En modo offline, actualizar localmente igualmente
@@ -331,6 +418,7 @@ class ProfileViewModel : ViewModel() {
                     _descripcion.value = nuevaDescripcion
                     _isOnline.value = false
                     _showOfflineMessage.value = true
+                    _mensaje.value = "Cambios guardados localmente. Se sincronizarán cuando haya conexión."
                 }
         }
     }
