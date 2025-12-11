@@ -15,7 +15,7 @@
         android:layout_gravity="center"
         android:visibility="gone" />
 
-    <!-- NUEVO: Indicador offline -->
+    <!-- Indicador offline -->
     <LinearLayout
         android:id="@+id/offlineIndicator"
         android:layout_width="match_parent"
@@ -129,9 +129,79 @@
                             android:textColor="#4285F4"
                             android:drawablePadding="8dp" />
 
+                        <!-- CONTADORES DE SEGUIDORES Y SIGUIENDO -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="16dp"
+                            android:gravity="center"
+                            android:paddingHorizontal="32dp">
+
+                            <!-- Seguidores -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+
+                                <TextView
+                                    android:id="@+id/textSeguidoresCount"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="0"
+                                    android:textSize="18sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#000000" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Seguidores"
+                                    android:textSize="14sp"
+                                    android:textColor="#666666" />
+
+                            </LinearLayout>
+
+                            <!-- Línea divisoria -->
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="40dp"
+                                android:background="#E0E0E0" />
+
+                            <!-- Siguiendo -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+
+                                <TextView
+                                    android:id="@+id/textSiguiendoCount"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="0"
+                                    android:textSize="18sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#000000" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Siguiendo"
+                                    android:textSize="14sp"
+                                    android:textColor="#666666" />
+
+                            </LinearLayout>
+
+                        </LinearLayout>
+
                     </LinearLayout>
 
-                    <!-- Solo botón Editar -->
+                    <!-- Botón Editar -->
                     <Button
                         android:id="@+id/boton_editar"
                         android:layout_width="wrap_content"

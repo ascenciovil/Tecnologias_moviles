@@ -10,7 +10,7 @@ import java.util.Locale
 class ProfileViewModel : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance() // Ya está configurado offline desde LoginActivity
+    private val db = FirebaseFirestore.getInstance()
 
     // Datos del usuario actual
     private val _nombre = MutableLiveData<String>().apply {
@@ -33,6 +33,17 @@ class ProfileViewModel : ViewModel() {
     }
     val descripcion: LiveData<String> = _descripcion
 
+    // NUEVO: Contadores de seguidores y siguiendo
+    private val _seguidoresCount = MutableLiveData<Int>().apply {
+        value = 0
+    }
+    val seguidoresCount: LiveData<Int> = _seguidoresCount
+
+    private val _siguiendoCount = MutableLiveData<Int>().apply {
+        value = 0
+    }
+    val siguiendoCount: LiveData<Int> = _siguiendoCount
+
     private val _rutasPublicadas = MutableLiveData<List<Ruta>>().apply {
         value = emptyList()
     }
@@ -49,7 +60,7 @@ class ProfileViewModel : ViewModel() {
     }
     val isLoading: LiveData<Boolean> = _isLoading
 
-    // Nuevo: Estados para manejar conexión
+    // Estados para manejar conexión
     private val _isOnline = MutableLiveData<Boolean>().apply {
         value = true
     }
@@ -60,7 +71,7 @@ class ProfileViewModel : ViewModel() {
     }
     val showOfflineMessage: LiveData<Boolean> = _showOfflineMessage
 
-    // Cargar datos del usuario desde Firestore (con soporte offline mejorado)
+    // Cargar datos del usuario desde Firestore
     fun cargarDatosUsuario() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -91,7 +102,12 @@ class ProfileViewModel : ViewModel() {
     private fun procesarDatosUsuario(document: com.google.firebase.firestore.DocumentSnapshot) {
         val nombreUsuario = document.getString("nombre_usuario") ?: "Usuario"
         val correo = document.getString("Correo") ?: auth.currentUser?.email ?: ""
-        val descripcionUsuario = document.getString("descripcion") ?: "Esta es tu descripción personal. Puedes editarla para contar más sobre ti."
+        val descripcionUsuario = document.getString("descripcion")
+            ?: "Esta es tu descripción personal. Puedes editarla para contar más sobre ti."
+
+        // Cargar contadores
+        _seguidoresCount.value = (document.get("seguidores_count") as? Long)?.toInt() ?: 0
+        _siguiendoCount.value = (document.get("siguiendo_count") as? Long)?.toInt() ?: 0
 
         _nombre.value = nombreUsuario
         _username.value = "@${nombreUsuario.lowercase(Locale.ROOT).replace(" ", "")}"
@@ -107,12 +123,9 @@ class ProfileViewModel : ViewModel() {
         _isOnline.value = false
         _showOfflineMessage.value = true
         _isLoading.value = false
-
-        // Los datos se cargarán automáticamente desde la cache offline
-        // si el usuario ya había cargado datos previamente
     }
 
-    // Cargar rutas reales del usuario desde Firestore (mejorado para offline)
+    // Cargar rutas reales del usuario desde Firestore
     private fun cargarRutasUsuario(userId: String) {
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
@@ -121,11 +134,17 @@ class ProfileViewModel : ViewModel() {
                 val rutas = mutableListOf<Ruta>()
 
                 for (document in querySnapshot.documents) {
-                    val titulo = document.getString("titulo") ?: "Ruta sin título"
-                    val descripcion = document.getString("descripcion") ?: ""
-                    val duracion = document.getString("duracion") ?: "Tiempo no especificado"
+                    val id = document.id  // Obtener ID del documento
+                    val titulo = document.getString("nombre")
+                        ?: document.getString("titulo")
+                        ?: "Ruta sin título"
 
-                    rutas.add(Ruta(titulo, descripcion, duracion))
+                    val descripcion = document.getString("descripcion") ?: ""
+                    val duracion = document.get("duracion")?.toString()
+                        ?: document.get("tiempo_estimado")?.toString()
+                        ?: "Tiempo no especificado"
+
+                    rutas.add(Ruta(id, titulo, descripcion, duracion))
                 }
 
                 _rutasPublicadas.value = rutas
@@ -136,7 +155,7 @@ class ProfileViewModel : ViewModel() {
             }
     }
 
-    // Cargar logros del usuario desde la subcolección (mejorado para offline)
+    // Cargar logros del usuario desde la subcolección
     private fun cargarLogrosUsuario(userId: String) {
         db.collection("Usuarios").document(userId)
             .collection("Logros")
@@ -168,7 +187,7 @@ class ProfileViewModel : ViewModel() {
             }
     }
 
-    // Inicializar logros base para un usuario (mejorado para offline)
+    // Inicializar logros base para un usuario
     private fun inicializarLogrosBase(userId: String) {
         val logrosBase = listOf(
             hashMapOf(
@@ -242,7 +261,7 @@ class ProfileViewModel : ViewModel() {
             }
     }
 
-    // Desbloquear un logro (mejorado para offline)
+    // Desbloquear un logro
     fun desbloquearLogro(logroId: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -279,7 +298,7 @@ class ProfileViewModel : ViewModel() {
         _logros.value = nuevosLogros
     }
 
-    // Actualizar perfil (mejorado para offline)
+    // Actualizar perfil
     fun actualizarPerfil(nuevoNombre: String, nuevaDescripcion: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -312,8 +331,6 @@ class ProfileViewModel : ViewModel() {
                     _descripcion.value = nuevaDescripcion
                     _isOnline.value = false
                     _showOfflineMessage.value = true
-
-                    // Los cambios se sincronizarán automáticamente cuando haya conexión
                 }
         }
     }
@@ -331,6 +348,8 @@ class ProfileViewModel : ViewModel() {
             "nombre_usuario" to "Nuevo Usuario",
             "descripcion" to "Esta es tu descripción personal. Puedes editarla para contar más sobre ti.",
             "foto_perf" to "",
+            "seguidores_count" to 0,    // Añadir
+            "siguiendo_count" to 0,     // Añadir
             "seguidos" to emptyList<String>(),
             "rutas_creadas" to emptyList<String>()
         )
@@ -346,7 +365,9 @@ class ProfileViewModel : ViewModel() {
     }
 }
 
+// MODIFICADO: Clase Ruta con ID
 data class Ruta(
+    val id: String,           // Añadir ID
     val titulo: String,
     val descripcion: String,
     val duracion: String

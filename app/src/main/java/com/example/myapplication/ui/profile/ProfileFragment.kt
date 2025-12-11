@@ -1,24 +1,28 @@
 package com.example.myapplication.ui.profile
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.example.myapplication.R
+import com.example.myapplication.VistaRuta
 import com.example.myapplication.databinding.FragmentProfileBinding
+import com.google.firebase.auth.FirebaseAuth
 
 class ProfileFragment : Fragment() {
 
     private var _binding: FragmentProfileBinding? = null
     private val binding get() = _binding!!
-
     private lateinit var profileViewModel: ProfileViewModel
 
     override fun onCreateView(
@@ -36,6 +40,25 @@ class ProfileFragment : Fragment() {
     }
 
     private fun setupUI() {
+        // Observar contadores de seguidores y siguiendo
+        profileViewModel.seguidoresCount.observe(viewLifecycleOwner) { count ->
+            binding.textSeguidoresCount.text = count.toString()
+
+            // Hacer clickeable para ver lista de seguidores
+            binding.textSeguidoresCount.setOnClickListener {
+                mostrarListaSeguidores()
+            }
+        }
+
+        profileViewModel.siguiendoCount.observe(viewLifecycleOwner) { count ->
+            binding.textSiguiendoCount.text = count.toString()
+
+            // Hacer clickeable para ver lista de siguiendo
+            binding.textSiguiendoCount.setOnClickListener {
+                mostrarListaSiguiendo()
+            }
+        }
+
         // Observar los datos del ViewModel
         profileViewModel.nombre.observe(viewLifecycleOwner) { nombre ->
             binding.textNombre.text = nombre
@@ -73,7 +96,7 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // NUEVO: Observar estado de conexión
+        // Observar estado de conexión
         profileViewModel.isOnline.observe(viewLifecycleOwner) { isOnline ->
             updateUIForConnectionState(isOnline)
         }
@@ -89,16 +112,56 @@ class ProfileFragment : Fragment() {
             mostrarDialogoEditarPerfil()
         }
 
-        // NUEVO: Botón de reintentar conexión
+        // Botón de reintentar conexión
         binding.retryButton.setOnClickListener {
             retryConnection()
+        }
+
+        // Hacer que los textos "Seguidores" y "Siguiendo" sean clickeables
+        val seguidoresContainer = binding.textSeguidoresCount.parent as? LinearLayout
+        seguidoresContainer?.let { container ->
+            // También hacer clickeable el label "Seguidores" (índice 1 es el TextView del label)
+            if (container.childCount > 1) {
+                val seguidoresLabel = container.getChildAt(1) as? TextView
+                seguidoresLabel?.setOnClickListener {
+                    mostrarListaSeguidores()
+                }
+            }
+        }
+
+        val siguiendoContainer = binding.textSiguiendoCount.parent as? LinearLayout
+        siguiendoContainer?.let { container ->
+            // También hacer clickeable el label "Siguiendo" (índice 1 es el TextView del label)
+            if (container.childCount > 1) {
+                val siguiendoLabel = container.getChildAt(1) as? TextView
+                siguiendoLabel?.setOnClickListener {
+                    mostrarListaSiguiendo()
+                }
+            }
         }
 
         // Cargar datos del usuario
         profileViewModel.cargarDatosUsuario()
     }
 
-    // NUEVO: Actualizar UI según estado de conexión
+    // Funciones para mostrar listas de seguidores/siguiendo
+    private fun mostrarListaSeguidores() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId != null) {
+            Log.d("ProfileFragment", "Mostrando lista de seguidores para: $userId")
+            Toast.makeText(requireContext(), "Lista de seguidores (implementar)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun mostrarListaSiguiendo() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId != null) {
+            Log.d("ProfileFragment", "Mostrando lista de siguiendo para: $userId")
+            Toast.makeText(requireContext(), "Lista de siguiendo (implementar)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Actualizar UI según estado de conexión
     private fun updateUIForConnectionState(isOnline: Boolean) {
         if (!isOnline && !(profileViewModel.isLoading.value ?: true)) {
             binding.offlineIndicator.visibility = View.VISIBLE
@@ -113,7 +176,7 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // NUEVO: Reintentar conexión
+    // Reintentar conexión
     private fun retryConnection() {
         binding.retryButton.visibility = View.GONE
         binding.offlineProgressBar.visibility = View.VISIBLE
@@ -127,16 +190,16 @@ class ProfileFragment : Fragment() {
         }, 3000)
     }
 
-    // NUEVO: Mostrar mensaje offline
+    // Mostrar mensaje offline
     private fun showOfflineMessage() {
         binding.offlineIndicator.visibility = View.VISIBLE
 
         // Mostrar toast informativo solo la primera vez
         if (profileViewModel.isOnline.value == false) {
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 requireContext(),
                 "Modo offline activado. Los datos pueden no estar actualizados.",
-                android.widget.Toast.LENGTH_LONG
+                Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -162,10 +225,10 @@ class ProfileFragment : Fragment() {
 
                     // Mostrar mensaje según el estado de conexión
                     if (profileViewModel.isOnline.value == false) {
-                        android.widget.Toast.makeText(
+                        Toast.makeText(
                             requireContext(),
                             "Cambios guardados localmente. Se sincronizarán cuando haya conexión.",
-                            android.widget.Toast.LENGTH_LONG
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 }
@@ -175,7 +238,7 @@ class ProfileFragment : Fragment() {
 
         dialog.show()
 
-        // NUEVO: Personalizar el botón positivo si estamos offline
+        // Personalizar el botón positivo si estamos offline
         dialog.setOnShowListener {
             val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             if (profileViewModel.isOnline.value == false) {
@@ -185,7 +248,7 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    private fun setupRutasList(rutas: List<Ruta>) {
+    private fun setupRutasList(rutas: List<com.example.myapplication.ui.profile.Ruta>) {
         val layoutRutas = binding.layoutRutas
         layoutRutas.removeAllViews()
 
@@ -205,7 +268,7 @@ class ProfileFragment : Fragment() {
             layoutRutas.addView(textView)
         } else {
             rutas.forEachIndexed { index, ruta ->
-                // Card para cada ruta
+                // Card para cada ruta - AHORA CLICKEABLE
                 val rutaCard = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
@@ -219,7 +282,29 @@ class ProfileFragment : Fragment() {
                         }
                     }
 
-                    // NUEVO: Indicador visual de datos cacheados
+                    // Hacer la card clickeable
+                    setOnClickListener {
+                        // Navegar a la VistaRuta
+                        val intent = Intent(requireContext(), VistaRuta::class.java)
+                        intent.putExtra("ruta_id", ruta.id)
+
+                        // Obtener el ID del usuario actual
+                        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                        intent.putExtra("autor_id", userId)
+
+                        startActivity(intent)
+
+                        // Animación de transición
+                        requireActivity().overridePendingTransition(
+                            android.R.anim.fade_in,
+                            android.R.anim.fade_out
+                        )
+                    }
+
+                    // Hacerla clickeable
+                    isClickable = true
+                    isFocusable = true
+
                     if (profileViewModel.isOnline.value == false) {
                         alpha = 0.8f
                     }
@@ -268,6 +353,27 @@ class ProfileFragment : Fragment() {
                     }
                     rutaCard.addView(descripcionTextView)
                 }
+
+                // Icono de flecha para indicar que es clickeable
+                val flechaLayout = LinearLayout(requireContext()).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = 8.dpToPx()
+                    }
+                }
+
+                val flechaTextView = TextView(requireContext()).apply {
+                    text = "Ver ruta →"
+                    textSize = 14f
+                    setTextColor(0xFF4285F4.toInt())
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                flechaLayout.addView(flechaTextView)
+                rutaCard.addView(flechaLayout)
 
                 // Indicador de datos en cache
                 if (profileViewModel.isOnline.value == false) {
@@ -327,7 +433,7 @@ class ProfileFragment : Fragment() {
             }
             background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
 
-            // NUEVO: Indicador visual para datos offline
+            // Indicador visual para datos offline
             if (profileViewModel.isOnline.value == false && !logro.obtenido) {
                 alpha = 0.7f
             }
@@ -368,7 +474,7 @@ class ProfileFragment : Fragment() {
                 setPadding(0, 4.dpToPx(), 0, 0)
             }
 
-            // NUEVO: Indicador de progreso offline para logros no obtenidos
+            // Indicador de progreso offline para logros no obtenidos
             if (profileViewModel.isOnline.value == false && !logro.obtenido) {
                 val offlineInfo = TextView(requireContext()).apply {
                     text = "Conecta para desbloquear"
