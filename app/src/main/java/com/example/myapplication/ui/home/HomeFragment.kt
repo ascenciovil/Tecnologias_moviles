@@ -29,12 +29,15 @@ import com.google.android.gms.maps.model.MarkerOptions
 import java.util.Locale
 import android.widget.TextView
 import android.net.Uri
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import java.io.File
 import com.example.myapplication.FotoConCoordenada
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.PolylineOptions
 
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
@@ -60,8 +63,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private var currentLocation: Location? = null
 
     private val pasosTotales = 523
-    private val distanciaTotal = 1.34   // km de ejemplo
-    private val velocidadPromedio = 4.8 // km/h de ejemplo
     private var pasosInicio = -1
     private var pasosActuales = 0
 
@@ -111,7 +112,30 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-        getCurrentLocation()
+
+        val coords = arguments?.getParcelableArrayList<LatLng>("ruta_coords")
+
+        if (!coords.isNullOrEmpty()) {
+            dibujarRuta(coords)
+            if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
+                return
+            }
+
+            mMap.isMyLocationEnabled = true
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    currentLocation = location
+                    val distancia = distanciaAInicioRuta(coords.first())
+                    val texto = String.format(Locale.US, "Distancia al inicio: %.2f km", distancia)
+                    Toast.makeText(requireContext(), texto, Toast.LENGTH_LONG).show()
+                }
+            }
+        }else{
+            getCurrentLocation()
+        }
+
     }
 
     private fun getCurrentLocation() {
@@ -317,7 +341,43 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }
     }
 
+    private fun dibujarRuta(coordenadas: List<LatLng>) {
+        if (coordenadas.isEmpty()) return
+        val latLngList = coordenadas.map { LatLng(it.latitude, it.longitude) }
 
+        val polylineOptions = PolylineOptions().width(10f)
+        polylineOptions.addAll(latLngList)
+        mMap.addPolyline(polylineOptions)
+
+        // Centrar la cámara
+        try {
+            val boundsBuilder = LatLngBounds.Builder()
+            latLngList.forEach { boundsBuilder.include(it) }
+            val bounds = boundsBuilder.build()
+            val padding = 100
+            val cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding)
+            mMap.moveCamera(cameraUpdate)
+        } catch (e: IllegalStateException) {
+            // Esto pasa cuando todos los puntos son exactamente iguales
+            if (latLngList.isNotEmpty()) {
+                mMap.moveCamera(
+                    CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f)
+                )
+            }
+        }
+    }
+
+    private fun distanciaAInicioRuta(primerPunto: LatLng): Double {
+        val locActual = currentLocation ?: return -1.0
+
+        val locInicio = Location("").apply {
+            latitude = primerPunto.latitude
+            longitude = primerPunto.longitude
+        }
+
+        val distanciaMetros = locActual.distanceTo(locInicio)
+        return distanciaMetros / 1000.0 // km
+    }
 
 
     override fun onDestroyView() {

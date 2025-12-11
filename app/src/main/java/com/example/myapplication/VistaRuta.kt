@@ -19,6 +19,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
+import android.util.Log
 
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
@@ -41,7 +42,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
-    private var coordenadasRuta: List<GeoPoint> = emptyList()
+    private var coordenadasRuta: List<LatLng> = emptyList()
     private var imagenesRuta: List<String> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,14 +79,14 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         // 🔙 Botón back del toolbar
         toolbar.setNavigationOnClickListener { finish() }
 
-        // ▶️ Botón "Seguir ruta" (placeholder)
-        btnSeguir.setOnClickListener { view ->
-            Snackbar.make(
-                view,
-                "Iniciando seguimiento (no implementado)...",
-                Snackbar.LENGTH_SHORT
-            ).show()
+        btnSeguir.setOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            intent.putExtra("go_to_home", true)
+            intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta)) // ← lista de LatLng
+            startActivity(intent)
+            finish()
         }
+
 
         // 🖼️ Botón "Ver fotos"
         btnFotos.setOnClickListener {
@@ -138,16 +139,39 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 // coordenadas...
                 coordenadasRuta = (doc.get("coordenadas") as? List<*>)
                     ?.mapNotNull { value ->
+
                         when (value) {
-                            is GeoPoint -> value
+
+                            // Caso GeoPoint real (no es tu caso, pero sirve)
+                            is com.google.firebase.firestore.GeoPoint -> {
+                                LatLng(value.latitude, value.longitude)
+                            }
+
+                            // Caso Map con latitude/longitude
                             is Map<*, *> -> {
                                 val lat = (value["latitude"] as? Number)?.toDouble()
                                 val lng = (value["longitude"] as? Number)?.toDouble()
-                                if (lat != null && lng != null) GeoPoint(lat, lng) else null
+
+                                if (lat != null && lng != null) {
+                                    LatLng(lat, lng)
+                                } else {
+                                    Log.e("RUTA_DEBUG", "Punto inválido: $value")
+                                    null
+                                }
                             }
-                            else -> null
+
+                            else -> {
+                                Log.e("RUTA_DEBUG", "Formato desconocido: $value")
+                                null
+                            }
                         }
-                    } ?: emptyList()
+                    }
+                    ?.also {
+                        Log.d("RUTA_DEBUG", "Coordenadas mapeadas (size=${it.size}): $it")
+                    }
+                    ?: emptyList()
+
+
 
 
                 val imagenesField = doc.get("imagenes")
