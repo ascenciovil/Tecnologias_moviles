@@ -59,25 +59,27 @@ class RutasFragment : Fragment() {
             .whereEqualTo("visible", true)
             .get()
             .addOnSuccessListener { result ->
+
                 rutasList.clear()
+                val total = result.size()
+                var completados = 0
+
+                if (total == 0) {
+                    adapter.notifyDataSetChanged()
+                    return@addOnSuccessListener
+                }
 
                 for (doc in result) {
                     val nombre = doc.getString("nombre") ?: "Sin nombre"
-
-                    // rating puede venir como Long o Double → mejor usar Number
                     val ratingNumber = doc.get("rating") as? Number
                     val rating = ratingNumber?.toDouble() ?: 0.0
-
-                    // ⚠️ En tu BD el campo es "userId", no "id_usuario"
                     val idUsuario = doc.getString("userId") ?: ""
                     val idRuta = doc.id
 
                     if (idUsuario.isNotEmpty()) {
                         db.collection("Usuarios").document(idUsuario).get()
                             .addOnSuccessListener { userDoc ->
-                                val autor =
-                                    userDoc.getString("nombre_usuario") ?: "Desconocido"
-
+                                val autor = userDoc.getString("nombre_usuario") ?: "Desconocido"
                                 rutasList.add(
                                     Ruta(
                                         nombre = nombre,
@@ -87,31 +89,32 @@ class RutasFragment : Fragment() {
                                         idRuta = idRuta
                                     )
                                 )
-                                adapter.notifyDataSetChanged()
+
+                                completados++
+
+                                // Cuando todo termine → ordenar y refrescar
+                                if (completados == total) {
+                                    rutasList.sortByDescending { it.rating }
+                                    adapter.notifyDataSetChanged()
+                                }
+
+
                             }
                             .addOnFailureListener {
-                                // Si falla la carga del usuario igual mostramos la ruta
-                                rutasList.add(
-                                    Ruta(
-                                        nombre = nombre,
-                                        autor = "Desconocido",
-                                        rating = rating,
-                                        idRuta = idRuta
-                                    )
-                                )
-                                adapter.notifyDataSetChanged()
+                                rutasList.add(Ruta(nombre, "Desconocido", rating, idRuta))
+                                completados++
+                                if (completados == total) {
+                                    rutasList.sortByDescending { it.rating }
+                                    adapter.notifyDataSetChanged()
+                                }
                             }
                     } else {
-                        // Si no tiene userId, mostramos sin autor
-                        rutasList.add(
-                            Ruta(
-                                nombre = nombre,
-                                autor = "Desconocido",
-                                rating = rating,
-                                idRuta = idRuta
-                            )
-                        )
-                        adapter.notifyDataSetChanged()
+                        rutasList.add(Ruta(nombre, "Desconocido", rating, idRuta))
+                        completados++
+                        if (completados == total) {
+                            rutasList.sortByDescending { it.rating }
+                            adapter.notifyDataSetChanged()
+                        }
                     }
                 }
             }
