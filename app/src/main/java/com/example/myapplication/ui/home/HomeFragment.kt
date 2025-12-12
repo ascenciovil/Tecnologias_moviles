@@ -63,7 +63,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private val fotosTomadas = arrayListOf<FotoConCoordenada>()
 
     private var currentLocation: Location? = null
-  
+
     private var pasosInicio = -1
     private var pasosActuales = 0
 
@@ -303,7 +303,15 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             requireActivity().runOnUiThread { binding.distanciaText.visibility = View.VISIBLE }
             animateDecimalTextView(binding.distanciaText, distanciaTotal, " km") {
                 requireActivity().runOnUiThread { binding.velocidadText.visibility = View.VISIBLE }
-                animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h")
+                animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h") {
+
+                    //Mostrar resumen final
+                    requireActivity().runOnUiThread {
+                        binding.resumenPasos.visibility = View.VISIBLE
+                        binding.resumenPasos.text =
+                            "Resumen: Caminaste aproximadamente $pasosActuales pasos en total."
+                    }
+                }
             }
         }
 
@@ -313,7 +321,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             intent.putExtra("fotos", fotosTomadas)
             startActivity(intent)
         }
-
     }
 
     private fun animateNumberTextView(textView: TextView, from: Int, to: Int, suffix: String = "", onEnd: (() -> Unit)? = null) {
