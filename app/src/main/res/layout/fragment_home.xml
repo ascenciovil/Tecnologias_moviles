@@ -103,6 +103,16 @@
             android:paddingTop="24dp"
             android:visibility="gone"/>
 
+        <TextView
+            android:id="@+id/resumenPasos"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Resumen:"
+            android:textSize="22sp"
+            android:textColor="@android:color/white"
+            android:paddingTop="24dp"
+            android:visibility="gone"/>
+
         <!-- Distancia recorrida -->
         <TextView
             android:id="@+id/distanciaText"
