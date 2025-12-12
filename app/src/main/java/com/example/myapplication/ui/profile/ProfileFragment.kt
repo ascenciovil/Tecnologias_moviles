@@ -236,19 +236,17 @@ class ProfileFragment : Fragment() {
     }
 
     private fun mostrarOpcionesFotoPerfil() {
-        val opciones = arrayOf("Tomar foto", "Elegir de galería", "Eliminar foto actual", "Cancelar")
+        val opciones = arrayOf("Elegir de galería", "Eliminar foto actual")
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Foto de perfil")
             .setItems(opciones) { dialog, which ->
                 when (which) {
-                    0 -> tomarFoto()
-                    1 -> seleccionarDeGaleria()
-                    2 -> eliminarFotoActual()
-                    // 3 -> Cancelar (no hace nada)
+                    0 -> seleccionarDeGaleria()
+                    1 -> eliminarFotoActual()
                 }
             }
-            .setNegativeButton("Cancelar", null)
+
             .show()
     }
 
