@@ -8,6 +8,9 @@ import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.example.myapplication.databinding.ActivityMainBinding
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.PolylineOptions
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,14 +25,35 @@ class MainActivity : AppCompatActivity() {
         val navView: BottomNavigationView = binding.navView
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
+
         val appBarConfiguration = AppBarConfiguration(
             setOf(
-                R.id.navigation_home, R.id.navigation_profile, R.id.navigation_rutas, R.id.navigation_notifications
+                R.id.navigation_home,
+                R.id.navigation_profile,
+                R.id.navigation_rutas,
+                R.id.navigation_notifications
             )
         )
+
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
+
+        val goToHome = intent.getBooleanExtra("go_to_home", false)
+
+        if (goToHome) {
+
+            val coords = intent.getParcelableArrayListExtra<LatLng>("ruta_coords")
+            val rutaId = intent.getStringExtra("ruta_id")
+
+            navController.popBackStack(R.id.navigation_home, true)
+
+            navController.navigate(R.id.navigation_home, Bundle().apply {
+                putString("ruta_id", rutaId)
+                putParcelableArrayList("ruta_coords", coords)
+            })
+
+        }
+
     }
 }
+
