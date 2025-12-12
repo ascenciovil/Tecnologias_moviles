@@ -23,7 +23,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
-import android.util.Log
 import com.bumptech.glide.Glide
 import com.google.android.gms.maps.model.MarkerOptions
 import android.widget.ImageView
