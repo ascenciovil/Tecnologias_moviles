@@ -76,6 +76,12 @@
             android:exported="false"
             android:theme="@style/Theme.MyApplication.NoActionBar" />
 
+        <activity
+            android:name=".PhotoViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication.NoActionBar" />
+
+
     </application>
 
 </manifest>
