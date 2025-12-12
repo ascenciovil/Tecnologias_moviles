@@ -9,8 +9,6 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.example.myapplication.databinding.ActivityMainBinding
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.PolylineOptions
 
 class MainActivity : AppCompatActivity() {
 
@@ -23,7 +21,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val navView: BottomNavigationView = binding.navView
-
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
         val appBarConfiguration = AppBarConfiguration(
@@ -52,8 +49,11 @@ class MainActivity : AppCompatActivity() {
                 putParcelableArrayList("ruta_coords", coords)
             })
 
+            // IMPORTANTE: limpiar extras evitando que se reejecute al volver
+            intent.removeExtra("go_to_home")
+            intent.removeExtra("ruta_id")
+            intent.removeExtra("ruta_coords")
         }
 
     }
 }
-

@@ -143,6 +143,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                     Toast.makeText(requireContext(), texto, Toast.LENGTH_LONG).show()
                 }
             }
+            arguments?.clear()
         }else{
             getCurrentLocation()
         }
