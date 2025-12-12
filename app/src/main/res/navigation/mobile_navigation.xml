@@ -28,4 +28,5 @@
         android:name="com.example.myapplication.ui.profile.ProfileFragment"
         android:label="Mi Perfil"
         tools:layout="@layout/fragment_profile" />
+
 </navigation>

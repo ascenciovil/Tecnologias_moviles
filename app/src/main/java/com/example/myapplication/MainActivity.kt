@@ -43,10 +43,12 @@ class MainActivity : AppCompatActivity() {
         if (goToHome) {
 
             val coords = intent.getParcelableArrayListExtra<LatLng>("ruta_coords")
+            val rutaId = intent.getStringExtra("ruta_id")
 
             navController.popBackStack(R.id.navigation_home, true)
 
             navController.navigate(R.id.navigation_home, Bundle().apply {
+                putString("ruta_id", rutaId)
                 putParcelableArrayList("ruta_coords", coords)
             })
 

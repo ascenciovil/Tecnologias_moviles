@@ -2,8 +2,11 @@ package com.example.myapplication
 
 import android.location.Location
 import android.os.Bundle
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.RatingBar
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -49,6 +52,28 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_vista_ruta)
 
+        val fromSeguimiento = intent.getBooleanExtra("from_seguimiento", false)
+        val popup = findViewById<LinearLayout>(R.id.valoracion)
+        val contentRoot = findViewById<View>(R.id.route_detail_root)
+
+        if (fromSeguimiento) {
+            val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
+            val contentRoot = findViewById<View>(R.id.route_detail_root)
+
+
+            ratingBar.setOnRatingBarChangeListener { _, rating, _ ->
+                // Aquí recibes el valor seleccionado por el usuario
+                println("El usuario seleccionó: $rating estrellas")
+
+                // Si quieres mostrar un toast:
+                Toast.makeText(this, "Has seleccionado $rating estrellas", Toast.LENGTH_SHORT).show()
+                enviarValoracion(rating.toInt())
+            }
+
+            mostrarPopup(popup, contentRoot)
+        }
+
+
         // 🧭 Referencias a vistas
         toolbar = findViewById(R.id.topAppBar)
         btnSeguir = findViewById(R.id.btn_seguir_ruta)
@@ -82,6 +107,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         btnSeguir.setOnClickListener {
             val intent = Intent(this, MainActivity::class.java)
             intent.putExtra("go_to_home", true)
+            intent.putExtra("ruta_id", rutaId)
             intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta)) // ← lista de LatLng
             startActivity(intent)
             finish()
@@ -285,5 +311,72 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         tvDistanceLabel.text = "Distancia de la ruta: $kmRounded km"
     }
+    private fun mostrarPopup(popup: View, root: View) {
+        root.alpha = 0.3f     // oscurecer fondo
+        popup.visibility = View.VISIBLE
+        root.isEnabled = false
+
+
+        popup.bringToFront()  // lo pone sobre todo
+        popup.isClickable = true
+        popup.isFocusable = true
+
+        findViewById<MaterialButton>(R.id.btn_cerrar_valoracion).setOnClickListener {
+            popup.visibility = View.GONE
+            root.isEnabled = true
+            root.alpha = 1f
+        }
+
+    }
+
+    private fun enviarValoracion(valor: Int) {
+
+        val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val rutaId = this.rutaId
+
+        if (userId == null || rutaId == null) {
+            Toast.makeText(this, "No se pudo enviar la valoración", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val valoracionData = mapOf(
+            "valor" to valor,
+            "fecha" to com.google.firebase.Timestamp.now()
+        )
+
+        db.collection("Rutas")
+            .document(rutaId)
+            .collection("Valoraciones")
+            .document(userId)
+            .set(valoracionData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Valoración enviada ✔️", Toast.LENGTH_SHORT).show()
+                actualizarPromedio(rutaId)
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Error al enviar: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun actualizarPromedio(rutaId: String) {
+
+        db.collection("Rutas")
+            .document(rutaId)
+            .collection("Valoraciones")
+            .get()
+            .addOnSuccessListener { snapshot ->
+
+                if (snapshot.isEmpty) return@addOnSuccessListener
+
+                val total = snapshot.documents.sumOf { (it.getLong("valor") ?: 0L).toDouble() }
+                val promedio = total / snapshot.size().toDouble()
+
+                db.collection("Rutas")
+                    .document(rutaId)
+                    .update("rating", promedio)
+            }
+    }
+
+
 
 }
