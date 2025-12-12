@@ -23,6 +23,9 @@ import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
 import android.util.Log
+import com.bumptech.glide.Glide
+import com.google.android.gms.maps.model.MarkerOptions
+import android.widget.ImageView
 
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
@@ -46,7 +49,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
     private var coordenadasRuta: List<LatLng> = emptyList()
-    private var imagenesRuta: List<String> = emptyList()
+    private var imagenesRuta: List<FotoConCoordenada> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,7 +123,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Esta ruta no tiene fotos", Toast.LENGTH_SHORT).show()
             } else {
                 val intent = Intent(this, GaleriaRutaActivity::class.java)
-                intent.putStringArrayListExtra("imagenes_ruta", ArrayList(imagenesRuta))
+                intent.putExtra("imagenes_ruta", ArrayList(imagenesRuta))
                 startActivity(intent)
             }
         }
@@ -204,11 +207,13 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
                 imagenesRuta = when (imagenesField) {
                     is List<*> -> imagenesField.mapNotNull { item ->
-                        when (item) {
-                            is String -> item
-                            is Map<*, *> -> item["url"] as? String
-                            else -> null
-                        }
+                        if (item is Map<*, *>) {
+                            FotoConCoordenada(
+                                uri = item["url"] as? String ?: "",
+                                lat = (item["lat"] as? Number)?.toDouble(),
+                                lng = (item["lng"] as? Number)?.toDouble()
+                            )
+                        } else null
                     }
                     else -> emptyList()
                 }
@@ -249,13 +254,18 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
-    // ==========================
-    //     MAPA
-    // ==========================
+
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         mapReady = true
         dibujarRutaSiLista()
+        googleMap.setOnMarkerClickListener { marker ->
+            val url = marker.tag as? String
+            if (url != null) {
+                mostrarImagenEnDialog(url)
+            }
+            true // ← Importante para evitar que la cámara se mueva automáticamente
+        }
     }
 
     private fun dibujarRutaSiLista() {
@@ -283,6 +293,18 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 )
             }
         }
+
+        imagenesRuta
+            .filter { it.lat != null && it.lng != null }
+            .forEach { foto ->
+                val pos = LatLng(foto.lat!!, foto.lng!!)
+                val marker = googleMap.addMarker(
+                    MarkerOptions()
+                        .position(pos)
+                        .title("Foto")
+                )
+                marker?.tag = foto.uri
+            }
     }
 
     private fun actualizarDistanciaLabel() {
@@ -377,6 +399,19 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             }
     }
 
+    private fun mostrarImagenEnDialog(url: String) {
+        val dialog = android.app.Dialog(this)
+        dialog.setContentView(R.layout.dialog_imagen) // lo creamos abajo
+        dialog.setCancelable(true)
+
+        val imageView = dialog.findViewById<ImageView>(R.id.dialogImage)
+
+        Glide.with(this)
+            .load(url)
+            .into(imageView)
+
+        dialog.show()
+    }
 
 
 }
