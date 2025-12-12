@@ -22,7 +22,7 @@ class RutasFragment : Fragment() {
     private val rutasList = mutableListOf<Ruta>()
     private lateinit var adapter: RutasAdapter
 
-    // Modelo para mostrar la tarjeta
+    // Modelo para mostrar la tarjeta - CORREGIDO
     data class Ruta(
         val nombre: String = "",
         val autor: String = "",
@@ -41,7 +41,6 @@ class RutasFragment : Fragment() {
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
         adapter = RutasAdapter(rutasList) { ruta ->
-            // Al hacer click, abrimos VistaRuta pasando el ID del documento
             val intent = Intent(requireContext(), VistaRuta::class.java)
             intent.putExtra("ruta_id", ruta.idRuta)
             intent.putExtra("autor_id", ruta.autorId)
@@ -92,16 +91,22 @@ class RutasFragment : Fragment() {
 
                                 completados++
 
-                                // Cuando todo termine → ordenar y refrescar
                                 if (completados == total) {
                                     rutasList.sortByDescending { it.rating }
                                     adapter.notifyDataSetChanged()
                                 }
-
-
                             }
                             .addOnFailureListener {
-                                rutasList.add(Ruta(nombre, "Desconocido", rating, idRuta))
+                                // CORREGIDO: Ahora pasamos todos los parámetros requeridos
+                                rutasList.add(
+                                    Ruta(
+                                        nombre = nombre,
+                                        autor = "Desconocido",
+                                        autorId = "",
+                                        rating = rating,
+                                        idRuta = idRuta
+                                    )
+                                )
                                 completados++
                                 if (completados == total) {
                                     rutasList.sortByDescending { it.rating }
@@ -109,7 +114,16 @@ class RutasFragment : Fragment() {
                                 }
                             }
                     } else {
-                        rutasList.add(Ruta(nombre, "Desconocido", rating, idRuta))
+                        // CORREGIDO: Ahora pasamos todos los parámetros requeridos
+                        rutasList.add(
+                            Ruta(
+                                nombre = nombre,
+                                autor = "Desconocido",
+                                autorId = "",
+                                rating = rating,
+                                idRuta = idRuta
+                            )
+                        )
                         completados++
                         if (completados == total) {
                             rutasList.sortByDescending { it.rating }

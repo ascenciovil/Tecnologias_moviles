@@ -2,23 +2,29 @@ package com.example.myapplication.ui.profile
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.example.myapplication.databinding.FragmentProfileBinding
+import com.github.dhaval2404.imagepicker.ImagePicker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 class ProfileFragment : Fragment() {
 
@@ -44,32 +50,18 @@ class ProfileFragment : Fragment() {
         // Observar contadores de seguidores y siguiendo
         profileViewModel.seguidoresCount.observe(viewLifecycleOwner) { count ->
             binding.textSeguidoresCount.text = count.toString()
-
-            // Hacer clickeable para ver lista de seguidores
-            binding.textSeguidoresCount.setOnClickListener {
-                mostrarListaSeguidores()
-            }
         }
 
         profileViewModel.siguiendoCount.observe(viewLifecycleOwner) { count ->
             binding.textSiguiendoCount.text = count.toString()
-
-            // Hacer clickeable para ver lista de siguiendo
-            binding.textSiguiendoCount.setOnClickListener {
-                mostrarListaSiguiendo()
-            }
         }
 
-        // Observar mensajes del ViewModel (CORRECCIÓN: usar value directamente)
         profileViewModel.mensaje.observe(viewLifecycleOwner) { mensaje ->
             mensaje?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
-                // No podemos limpiar el mensaje así porque es LiveData
-                // En su lugar, manejamos el mensaje una sola vez
             }
         }
 
-        // Observar los datos del ViewModel
         profileViewModel.nombre.observe(viewLifecycleOwner) { nombre ->
             binding.textNombre.text = nombre
         }
@@ -86,11 +78,14 @@ class ProfileFragment : Fragment() {
             binding.textDescripcion.text = descripcion
         }
 
+        profileViewModel.fotoPerfilUrl.observe(viewLifecycleOwner) { url ->
+            cargarFotoPerfil(url)
+        }
+
         profileViewModel.rutasPublicadas.observe(viewLifecycleOwner) { rutas ->
             setupRutasList(rutas)
         }
 
-        // Observar logros
         profileViewModel.logros.observe(viewLifecycleOwner) { logros ->
             setupLogrosList(logros)
         }
@@ -106,7 +101,6 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // Observar estado de conexión
         profileViewModel.isOnline.observe(viewLifecycleOwner) { isOnline ->
             updateUIForConnectionState(isOnline)
         }
@@ -117,98 +111,58 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // Configurar botones
         binding.botonEditar.setOnClickListener {
             mostrarDialogoEditarPerfil()
         }
 
-        // Botón de reintentar conexión
         binding.retryButton.setOnClickListener {
             retryConnection()
         }
 
-        // Hacer que los textos "Seguidores" y "Siguiendo" sean clickeables
-        val seguidoresContainer = binding.textSeguidoresCount.parent as? LinearLayout
-        seguidoresContainer?.let { container ->
-            // También hacer clickeable el label "Seguidores" (índice 1 es el TextView del label)
-            if (container.childCount > 1) {
-                val seguidoresLabel = container.getChildAt(1) as? TextView
-                seguidoresLabel?.setOnClickListener {
-                    mostrarListaSeguidores()
-                }
-            }
+        // Configurar clic en la imagen de perfil
+        binding.imageFotoPerfil.setOnClickListener {
+            mostrarOpcionesFotoPerfil()
         }
 
-        val siguiendoContainer = binding.textSiguiendoCount.parent as? LinearLayout
-        siguiendoContainer?.let { container ->
-            // También hacer clickeable el label "Siguiendo" (índice 1 es el TextView del label)
-            if (container.childCount > 1) {
-                val siguiendoLabel = container.getChildAt(1) as? TextView
-                siguiendoLabel?.setOnClickListener {
-                    mostrarListaSiguiendo()
-                }
-            }
-        }
-
-        // Cargar datos del usuario
         profileViewModel.cargarDatosUsuario()
     }
 
-    // Funciones para mostrar listas de seguidores/siguiendo
-    private fun mostrarListaSeguidores() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
-        if (userId != null) {
-            Log.d("ProfileFragment", "Mostrando lista de seguidores para: $userId")
-            Toast.makeText(requireContext(), "Lista de seguidores (implementar)", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun mostrarListaSiguiendo() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
-        if (userId != null) {
-            Log.d("ProfileFragment", "Mostrando lista de siguiendo para: $userId")
-            Toast.makeText(requireContext(), "Lista de siguiendo (implementar)", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // Actualizar UI según estado de conexión
     private fun updateUIForConnectionState(isOnline: Boolean) {
         if (!isOnline) {
-            // Verificar si no está cargando
             val isLoading = profileViewModel.isLoading.value ?: true
             if (!isLoading) {
                 binding.offlineIndicator.visibility = View.VISIBLE
                 binding.botonEditar.alpha = 0.6f
                 binding.botonEditar.isEnabled = false
+                binding.imageFotoPerfil.alpha = 0.6f
+                binding.imageFotoPerfil.isEnabled = false
             }
         } else {
             binding.offlineIndicator.visibility = View.GONE
             binding.botonEditar.alpha = 1.0f
             binding.botonEditar.isEnabled = true
+            binding.imageFotoPerfil.alpha = 1.0f
+            binding.imageFotoPerfil.isEnabled = true
             binding.offlineProgressBar.visibility = View.GONE
             binding.retryButton.visibility = View.VISIBLE
         }
     }
 
-    // Reintentar conexión
     private fun retryConnection() {
         binding.retryButton.visibility = View.GONE
         binding.offlineProgressBar.visibility = View.VISIBLE
 
         profileViewModel.sincronizarDatos()
 
-        // Ocultar el progreso después de 3 segundos si aún no hay respuesta
         binding.root.postDelayed({
             binding.offlineProgressBar.visibility = View.GONE
             binding.retryButton.visibility = View.VISIBLE
         }, 3000)
     }
 
-    // Mostrar mensaje offline
     private fun showOfflineMessage() {
         binding.offlineIndicator.visibility = View.VISIBLE
 
-        // Mostrar toast informativo solo la primera vez
         val isOnline = profileViewModel.isOnline.value ?: true
         if (!isOnline) {
             Toast.makeText(
@@ -223,25 +177,39 @@ class ProfileFragment : Fragment() {
         val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_editar_perfil, null)
         val editNombre = dialogView.findViewById<EditText>(R.id.edit_nombre)
         val editDescripcion = dialogView.findViewById<EditText>(R.id.edit_descripcion)
+        val btnCambiarFoto = dialogView.findViewById<TextView>(R.id.btn_cambiar_foto)
+        val imageFotoPerfil = dialogView.findViewById<ImageView>(R.id.image_foto_perfil)
 
-        // Establecer valores actuales
         val nombreActual = profileViewModel.nombre.value ?: ""
         val descripcionActual = profileViewModel.descripcion.value ?: ""
+        val fotoActual = profileViewModel.fotoPerfilUrl.value
 
         editNombre.setText(nombreActual)
         editDescripcion.setText(descripcionActual)
 
+        // Cargar foto actual en el diálogo
+        if (!fotoActual.isNullOrEmpty() && fotoActual != "default") {
+            Glide.with(this)
+                .load(fotoActual)
+                .placeholder(R.drawable.ic_profile_placeholder)
+                .circleCrop()
+                .into(imageFotoPerfil)
+        }
+
+        btnCambiarFoto.setOnClickListener {
+            mostrarOpcionesFotoPerfil()
+        }
+
         val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(getString(R.string.editar_perfil))
+            .setTitle("Editar Perfil")
             .setView(dialogView)
-            .setPositiveButton(getString(R.string.guardar)) { dialogInterface, which ->
+            .setPositiveButton("Guardar") { dialogInterface, which ->
                 val nuevoNombre = editNombre.text.toString().trim()
                 val nuevaDescripcion = editDescripcion.text.toString().trim()
 
                 if (nuevoNombre.isNotEmpty()) {
                     profileViewModel.actualizarPerfil(nuevoNombre, nuevaDescripcion)
 
-                    // Mostrar mensaje según el estado de conexión
                     val isOnline = profileViewModel.isOnline.value ?: true
                     if (!isOnline) {
                         Toast.makeText(
@@ -252,18 +220,103 @@ class ProfileFragment : Fragment() {
                     }
                 }
             }
-            .setNegativeButton(getString(R.string.cancelar), null)
+            .setNegativeButton("Cancelar", null)
             .create()
 
         dialog.show()
 
-        // Personalizar el botón positivo si estamos offline
         dialog.setOnShowListener {
             val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             val isOnline = profileViewModel.isOnline.value ?: true
             if (!isOnline) {
                 positiveButton.text = "Guardar (Offline)"
-                positiveButton.setTextColor(0xFFFFA000.toInt()) // Color naranja
+                positiveButton.setTextColor(0xFFFFA000.toInt())
+            }
+        }
+    }
+
+    private fun mostrarOpcionesFotoPerfil() {
+        val opciones = arrayOf("Tomar foto", "Elegir de galería", "Eliminar foto actual", "Cancelar")
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Foto de perfil")
+            .setItems(opciones) { dialog, which ->
+                when (which) {
+                    0 -> tomarFoto()
+                    1 -> seleccionarDeGaleria()
+                    2 -> eliminarFotoActual()
+                    // 3 -> Cancelar (no hace nada)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun seleccionarDeGaleria() {
+        // Versión simplificada sin ImagePicker complicado
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, REQUEST_CODE_GALLERY)
+    }
+
+    private fun tomarFoto() {
+        Toast.makeText(requireContext(), "Funcionalidad de cámara por implementar", Toast.LENGTH_SHORT).show()
+        // Para simplificar, también redirige a galería
+        seleccionarDeGaleria()
+    }
+
+    private fun eliminarFotoActual() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Eliminar foto")
+            .setMessage("¿Estás seguro de que quieres eliminar tu foto de perfil?")
+            .setPositiveButton("Eliminar") { dialog, which ->
+                profileViewModel.eliminarFotoPerfil()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun subirNuevaFotoPerfil(uri: Uri) {
+        lifecycleScope.launch {
+            binding.progressBar.visibility = View.VISIBLE
+
+            try {
+                val imageUrl = profileViewModel.subirFotoACloudinary(uri, requireContext())
+
+                if (imageUrl != null) {
+                    profileViewModel.actualizarFotoPerfil(imageUrl)
+                    cargarFotoPerfil(imageUrl)
+                    Toast.makeText(requireContext(), "Foto actualizada correctamente", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Error al subir la imagen", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                binding.progressBar.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun cargarFotoPerfil(url: String?) {
+        if (!url.isNullOrEmpty() && url != "default") {
+            Glide.with(this)
+                .load(url)
+                .placeholder(R.drawable.ic_profile_placeholder)
+                .circleCrop()
+                .into(binding.imageFotoPerfil)
+        } else {
+            binding.imageFotoPerfil.setImageResource(R.drawable.ic_profile_placeholder)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_CODE_GALLERY && data != null) {
+            val uri = data.data
+            if (uri != null) {
+                subirNuevaFotoPerfil(uri)
             }
         }
     }
@@ -289,7 +342,6 @@ class ProfileFragment : Fragment() {
             layoutRutas.addView(textView)
         } else {
             rutas.forEachIndexed { index, ruta ->
-                // Card para cada ruta - AHORA CON BOTÓN DE ELIMINAR
                 val rutaCard = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
@@ -309,7 +361,6 @@ class ProfileFragment : Fragment() {
                     }
                 }
 
-                // Fila superior con título y duración
                 val filaSuperior = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
@@ -341,7 +392,6 @@ class ProfileFragment : Fragment() {
                 filaSuperior.addView(duracionTextView)
                 rutaCard.addView(filaSuperior)
 
-                // Descripción
                 if (ruta.descripcion.isNotEmpty()) {
                     val descripcionTextView = TextView(requireContext()).apply {
                         text = ruta.descripcion
@@ -353,7 +403,6 @@ class ProfileFragment : Fragment() {
                     rutaCard.addView(descripcionTextView)
                 }
 
-                // Fila inferior con botones de acción
                 val filaInferior = LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
@@ -364,7 +413,6 @@ class ProfileFragment : Fragment() {
                     }
                 }
 
-                // Botón para ver la ruta
                 val botonVer = TextView(requireContext()).apply {
                     text = "👁️ Ver ruta"
                     textSize = 14f
@@ -382,7 +430,6 @@ class ProfileFragment : Fragment() {
                     isClickable = true
 
                     setOnClickListener {
-                        // Navegar a la VistaRuta
                         val intent = Intent(requireContext(), VistaRuta::class.java)
                         intent.putExtra("ruta_id", ruta.id)
                         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -395,7 +442,6 @@ class ProfileFragment : Fragment() {
                     }
                 }
 
-                // Botón para ocultar la ruta
                 val botonOcultar = TextView(requireContext()).apply {
                     text = "🗑️ Ocultar"
                     textSize = 14f
@@ -419,7 +465,6 @@ class ProfileFragment : Fragment() {
                 filaInferior.addView(botonOcultar)
                 rutaCard.addView(filaInferior)
 
-                // Indicador de datos en cache
                 val isOnline = profileViewModel.isOnline.value ?: true
                 if (!isOnline) {
                     val cacheIndicator = TextView(requireContext()).apply {
@@ -436,7 +481,6 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // NUEVO: Mostrar diálogo de confirmación para ocultar ruta
     private fun mostrarDialogoConfirmacionOcultar(ruta: com.example.myapplication.ui.profile.Ruta) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Ocultar ruta")
@@ -448,7 +492,6 @@ class ProfileFragment : Fragment() {
             .show()
     }
 
-    // Configurar la lista de logros
     private fun setupLogrosList(logros: List<Logro>) {
         val layoutLogros = binding.layoutLogros
         layoutLogros.removeAllViews()
@@ -476,7 +519,6 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // Crear tarjeta de logro individual
     private fun createLogroCard(logro: Logro, index: Int): LinearLayout {
         return LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -491,13 +533,11 @@ class ProfileFragment : Fragment() {
             }
             background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
 
-            // Indicador visual para datos offline
             val isOnline = profileViewModel.isOnline.value ?: true
             if (!isOnline && !logro.obtenido) {
                 alpha = 0.7f
             }
 
-            // Icono del logro
             val iconoTextView = TextView(requireContext()).apply {
                 text = logro.icono
                 textSize = 24f
@@ -509,7 +549,6 @@ class ProfileFragment : Fragment() {
                 }
             }
 
-            // Información del logro
             val infoLayout = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -533,7 +572,6 @@ class ProfileFragment : Fragment() {
                 setPadding(0, 4.dpToPx(), 0, 0)
             }
 
-            // Indicador de progreso offline para logros no obtenidos
             if (!isOnline && !logro.obtenido) {
                 val offlineInfo = TextView(requireContext()).apply {
                     text = "Conecta para desbloquear"
@@ -547,7 +585,6 @@ class ProfileFragment : Fragment() {
             infoLayout.addView(nombreTextView)
             infoLayout.addView(descripcionTextView)
 
-            // Estado del logro
             val estadoTextView = TextView(requireContext()).apply {
                 text = if (logro.obtenido) "✓" else "🔒"
                 textSize = 18f
@@ -560,7 +597,6 @@ class ProfileFragment : Fragment() {
                 }
             }
 
-            // Aplicar efecto de deshabilitado si no está obtenido
             if (!logro.obtenido) {
                 alpha = 0.6f
             }
@@ -571,7 +607,6 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // Función de extensión para convertir dp a píxeles
     private fun Int.dpToPx(): Int {
         val density = resources.displayMetrics.density
         return (this * density).toInt()
@@ -580,5 +615,9 @@ class ProfileFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        private const val REQUEST_CODE_GALLERY = 1001
     }
 }

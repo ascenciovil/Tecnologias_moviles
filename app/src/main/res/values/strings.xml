@@ -14,7 +14,7 @@
     <string name="editar">Editar</string>
     <string name="configuracion_icono">⚙</string>
     <string name="sobre_mi">Sobre mí</string>
-    <string name="tu_descripcion_personal">Tu descripción personal…</string>
+    <string name="tu_descripcion_personal">Esta es tu descripción personal. Puedes editarla para contar más sobre ti.</string>
     <string name="mis_rutas_publicadas">Mis rutas publicadas</string>
     <string name="aun_no_rutas">No tienes ninguna ruta publicada</string>
 

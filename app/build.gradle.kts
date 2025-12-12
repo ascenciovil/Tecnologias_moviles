@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.gms.google.services)
+    // Eliminamos el plugin kotlin-kapt que no necesitamos
 }
 
 android {
@@ -53,6 +54,8 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.androidx.activity)
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.fragment:fragment-ktx:1.8.3")
 
     implementation("com.google.android.libraries.places:places:3.5.0")
     // --- Google Maps ---
@@ -75,7 +78,9 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
+    // Glide sin kapt - funcionará bien para carga básica de imágenes
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    // Eliminamos: kapt("com.github.bumptech.glide:compiler:4.16.0")
 
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
@@ -86,4 +91,9 @@ dependencies {
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("com.github.chrisbanes:PhotoView:2.3.0")
 
+    // Image picker
+    implementation("com.github.dhaval2404:imagepicker:2.1")
+
+    // CircleImageView para foto de perfil redonda
+    implementation("de.hdodenhof:circleimageview:3.1.0")
 }

@@ -7,7 +7,6 @@
     android:background="#F8F9FA"
     tools:context=".ui.profile.ProfileFragment">
 
-    <!-- Progress Bar para carga -->
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"
@@ -15,7 +14,6 @@
         android:layout_gravity="center"
         android:visibility="gone" />
 
-    <!-- Indicador offline -->
     <LinearLayout
         android:id="@+id/offlineIndicator"
         android:layout_width="match_parent"
@@ -64,7 +62,6 @@
 
     </LinearLayout>
 
-    <!-- ScrollView con contenido principal -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -79,7 +76,6 @@
             android:orientation="vertical"
             android:padding="0dp">
 
-            <!-- Header con fondo de color -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -92,9 +88,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginBottom="8dp">
+                    android:layout_marginBottom="16dp">
 
-                    <!-- Información del usuario -->
+                    <!-- NUEVO: Foto de perfil -->
+                    <de.hdodenhof.circleimageview.CircleImageView
+                        android:id="@+id/imageFotoPerfil"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:src="@drawable/ic_profile_placeholder"
+                        android:scaleType="centerCrop"
+                        android:layout_marginEnd="16dp"
+                        app:civ_border_width="2dp"
+                        app:civ_border_color="#4285F4" />
+
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -106,7 +112,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/tu_nombre"
-                            android:textSize="28sp"
+                            android:textSize="24sp"
                             android:textStyle="bold"
                             android:textColor="#1A1A1A"
                             android:layout_marginBottom="4dp" />
@@ -118,7 +124,7 @@
                             android:text="@string/tu_usuario"
                             android:textSize="16sp"
                             android:textColor="#666666"
-                            android:layout_marginBottom="12dp" />
+                            android:layout_marginBottom="8dp" />
 
                         <TextView
                             android:id="@+id/text_email"
@@ -129,79 +135,8 @@
                             android:textColor="#4285F4"
                             android:drawablePadding="8dp" />
 
-                        <!-- CONTADORES DE SEGUIDORES Y SIGUIENDO -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:layout_marginTop="16dp"
-                            android:layout_marginBottom="16dp"
-                            android:gravity="center"
-                            android:paddingHorizontal="32dp">
-
-                            <!-- Seguidores -->
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical"
-                                android:gravity="center">
-
-                                <TextView
-                                    android:id="@+id/textSeguidoresCount"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="0"
-                                    android:textSize="18sp"
-                                    android:textStyle="bold"
-                                    android:textColor="#000000" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Seguidores"
-                                    android:textSize="14sp"
-                                    android:textColor="#666666" />
-
-                            </LinearLayout>
-
-                            <!-- Línea divisoria -->
-                            <View
-                                android:layout_width="1dp"
-                                android:layout_height="40dp"
-                                android:background="#E0E0E0" />
-
-                            <!-- Siguiendo -->
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical"
-                                android:gravity="center">
-
-                                <TextView
-                                    android:id="@+id/textSiguiendoCount"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="0"
-                                    android:textSize="18sp"
-                                    android:textStyle="bold"
-                                    android:textColor="#000000" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Siguiendo"
-                                    android:textSize="14sp"
-                                    android:textColor="#666666" />
-
-                            </LinearLayout>
-
-                        </LinearLayout>
-
                     </LinearLayout>
 
-                    <!-- Botón Editar -->
                     <Button
                         android:id="@+id/boton_editar"
                         android:layout_width="wrap_content"
@@ -219,15 +154,80 @@
 
                 </LinearLayout>
 
+                <!-- CONTADORES DE SEGUIDORES Y SIGUIENDO -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center"
+                    android:paddingHorizontal="32dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/textSeguidoresCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="#000000" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Seguidores"
+                            android:textSize="14sp"
+                            android:textColor="#666666" />
+
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="40dp"
+                        android:background="#E0E0E0" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/textSiguiendoCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="#000000" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Siguiendo"
+                            android:textSize="14sp"
+                            android:textColor="#666666" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
             </LinearLayout>
 
-            <!-- Espaciador -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:background="#F8F9FA" />
 
-            <!-- Sección Sobre mí -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -259,13 +259,11 @@
 
             </LinearLayout>
 
-            <!-- Espaciador -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:background="#F8F9FA" />
 
-            <!-- Sección Mis rutas -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -291,13 +289,11 @@
 
             </LinearLayout>
 
-            <!-- Espaciador -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:background="#F8F9FA" />
 
-            <!-- Sección Logros -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -323,7 +319,6 @@
 
             </LinearLayout>
 
-            <!-- Espaciador final -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="24dp"

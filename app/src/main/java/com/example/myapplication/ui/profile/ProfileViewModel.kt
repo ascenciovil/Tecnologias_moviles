@@ -1,11 +1,21 @@
 package com.example.myapplication.ui.profile
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.example.myapplication.CloudinaryService
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 import android.util.Log
 
@@ -14,7 +24,6 @@ class ProfileViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
 
-    // Datos del usuario actual
     private val _nombre = MutableLiveData<String>().apply {
         value = "Cargando..."
     }
@@ -35,7 +44,11 @@ class ProfileViewModel : ViewModel() {
     }
     val descripcion: LiveData<String> = _descripcion
 
-    // NUEVO: Contadores de seguidores y siguiendo
+    private val _fotoPerfilUrl = MutableLiveData<String>().apply {
+        value = "default"
+    }
+    val fotoPerfilUrl: LiveData<String> = _fotoPerfilUrl
+
     private val _seguidoresCount = MutableLiveData<Int>().apply {
         value = 0
     }
@@ -51,7 +64,6 @@ class ProfileViewModel : ViewModel() {
     }
     val rutasPublicadas: LiveData<List<Ruta>> = _rutasPublicadas
 
-    // Logros del usuario
     private val _logros = MutableLiveData<List<Logro>>().apply {
         value = emptyList()
     }
@@ -62,7 +74,6 @@ class ProfileViewModel : ViewModel() {
     }
     val isLoading: LiveData<Boolean> = _isLoading
 
-    // Estados para manejar conexión
     private val _isOnline = MutableLiveData<Boolean>().apply {
         value = true
     }
@@ -73,11 +84,14 @@ class ProfileViewModel : ViewModel() {
     }
     val showOfflineMessage: LiveData<Boolean> = _showOfflineMessage
 
-    // NUEVO: Para mostrar mensajes de éxito/error
     private val _mensaje = MutableLiveData<String?>()
     val mensaje: LiveData<String?> = _mensaje
 
-    // Cargar datos del usuario desde Firestore
+    private companion object {
+        const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
+        const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
+    }
+
     fun cargarDatosUsuario() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -96,7 +110,6 @@ class ProfileViewModel : ViewModel() {
                     _isLoading.value = false
                 }
                 .addOnFailureListener { exception ->
-                    // En caso de error, intentamos cargar desde cache offline
                     manejarErrorOffline()
                 }
         } else {
@@ -104,14 +117,13 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // Función auxiliar para procesar datos del usuario
     private fun procesarDatosUsuario(document: com.google.firebase.firestore.DocumentSnapshot) {
         val nombreUsuario = document.getString("nombre_usuario") ?: "Usuario"
         val correo = document.getString("Correo") ?: auth.currentUser?.email ?: ""
         val descripcionUsuario = document.getString("descripcion")
             ?: "Esta es tu descripción personal. Puedes editarla para contar más sobre ti."
+        val fotoPerfil = document.getString("foto_perfil") ?: "default"
 
-        // Cargar contadores
         _seguidoresCount.value = (document.get("seguidores_count") as? Long)?.toInt() ?: 0
         _siguiendoCount.value = (document.get("siguiendo_count") as? Long)?.toInt() ?: 0
 
@@ -119,35 +131,102 @@ class ProfileViewModel : ViewModel() {
         _username.value = "@${nombreUsuario.lowercase(Locale.ROOT).replace(" ", "")}"
         _email.value = correo
         _descripcion.value = descripcionUsuario
+        _fotoPerfilUrl.value = fotoPerfil
 
         cargarRutasUsuario(auth.currentUser?.uid ?: "")
         cargarLogrosUsuario(auth.currentUser?.uid ?: "")
     }
 
-    // Manejar estado offline
+    suspend fun subirFotoACloudinary(uri: Uri, context: Context): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                    ?: return@withContext null
+
+                val tempFile = File.createTempFile("perfil_", ".jpg", context.cacheDir)
+                FileOutputStream(tempFile).use { out ->
+                    inputStream.use { it.copyTo(out) }
+                }
+
+                val requestFile = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val body = MultipartBody.Part.createFormData(
+                    "file",
+                    tempFile.name,
+                    requestFile
+                )
+
+                val presetBody = CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                val response = CloudinaryService.api.uploadImage(
+                    CLOUDINARY_CLOUD_NAME,
+                    body,
+                    presetBody
+                )
+
+                tempFile.delete()
+
+                response.secure_url
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+
+    fun actualizarFotoPerfil(imageUrl: String) {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            val updates = hashMapOf<String, Any>(
+                "foto_perfil" to imageUrl
+            )
+
+            db.collection("Usuarios").document(currentUser.uid)
+                .update(updates)
+                .addOnSuccessListener {
+                    _fotoPerfilUrl.value = imageUrl
+                    _mensaje.value = "Foto de perfil actualizada"
+                }
+                .addOnFailureListener { exception ->
+                    _mensaje.value = "Error al actualizar foto: ${exception.message}"
+                }
+        }
+    }
+
+    fun eliminarFotoPerfil() {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            val updates = hashMapOf<String, Any>(
+                "foto_perfil" to "default"
+            )
+
+            db.collection("Usuarios").document(currentUser.uid)
+                .update(updates)
+                .addOnSuccessListener {
+                    _fotoPerfilUrl.value = "default"
+                    _mensaje.value = "Foto eliminada"
+                }
+                .addOnFailureListener { exception ->
+                    _mensaje.value = "Error al eliminar foto: ${exception.message}"
+                }
+        }
+    }
+
     private fun manejarErrorOffline() {
         _isOnline.value = false
         _showOfflineMessage.value = true
         _isLoading.value = false
     }
 
-    // Cargar rutas reales del usuario desde Firestore
     private fun cargarRutasUsuario(userId: String) {
-
-
-
-
-
-
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
-            .whereEqualTo("visible", true) // NUEVO: Solo cargar rutas visibles
+            .whereEqualTo("visible", true)
             .get()
             .addOnSuccessListener { querySnapshot ->
                 val rutas = mutableListOf<Ruta>()
 
                 for (document in querySnapshot.documents) {
-                    val id = document.id  // Obtener ID del documento
+                    val id = document.id
                     val titulo = document.getString("nombre")
                         ?: document.getString("titulo")
                         ?: "Ruta sin título"
@@ -163,30 +242,25 @@ class ProfileViewModel : ViewModel() {
                 _rutasPublicadas.value = rutas
             }
             .addOnFailureListener { exception ->
-                // En modo offline, mostrar lista vacía o datos cacheados
                 _rutasPublicadas.value = emptyList()
             }
     }
 
-    // NUEVO: Función para ocultar/archivar una ruta
     fun ocultarRuta(rutaId: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             _isLoading.value = true
 
             db.collection("Rutas").document(rutaId)
-                .update("visible", false) // Cambiar a false para ocultar
+                .update("visible", false)
                 .addOnSuccessListener {
                     Log.d("ProfileViewModel", "✅ Ruta $rutaId ocultada exitosamente")
 
-                    // Actualizar la lista localmente
                     val rutasActuales = _rutasPublicadas.value ?: emptyList()
                     val nuevasRutas = rutasActuales.filter { it.id != rutaId }
                     _rutasPublicadas.value = nuevasRutas
 
-                    // Mostrar mensaje de éxito
                     _mensaje.value = "Ruta ocultada exitosamente"
-
                     _isLoading.value = false
                 }
                 .addOnFailureListener { exception ->
@@ -197,7 +271,6 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // NUEVO: Función para obtener rutas ocultas (si se quiere implementar recuperación)
     fun cargarRutasOcultas(userId: String) {
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
@@ -222,7 +295,6 @@ class ProfileViewModel : ViewModel() {
             }
     }
 
-    // NUEVO: Función para restaurar una ruta oculta
     fun restaurarRuta(rutaId: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -230,7 +302,6 @@ class ProfileViewModel : ViewModel() {
                 .update("visible", true)
                 .addOnSuccessListener {
                     Log.d("ProfileViewModel", "✅ Ruta $rutaId restaurada exitosamente")
-                    // Recargar rutas para incluir la restaurada
                     cargarRutasUsuario(currentUser.uid)
                     _mensaje.value = "Ruta restaurada exitosamente"
                 }
@@ -241,7 +312,6 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // Cargar logros del usuario desde la subcolección
     private fun cargarLogrosUsuario(userId: String) {
         db.collection("Usuarios").document(userId)
             .collection("Logros")
@@ -268,12 +338,10 @@ class ProfileViewModel : ViewModel() {
                 }
             }
             .addOnFailureListener { exception ->
-                // En modo offline, intentar inicializar logros base
                 inicializarLogrosBase(userId)
             }
     }
 
-    // Inicializar logros base para un usuario
     private fun inicializarLogrosBase(userId: String) {
         val logrosBase = listOf(
             hashMapOf(
@@ -331,7 +399,6 @@ class ProfileViewModel : ViewModel() {
                 _isLoading.value = false
             }
             .addOnFailureListener {
-                // En modo offline, crear logros localmente
                 val logrosOffline = logrosIds.mapIndexed { index, id ->
                     Logro(
                         id = id,
@@ -347,7 +414,6 @@ class ProfileViewModel : ViewModel() {
             }
     }
 
-    // Desbloquear un logro
     fun desbloquearLogro(logroId: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -360,18 +426,14 @@ class ProfileViewModel : ViewModel() {
                 .collection("Logros").document(logroId)
                 .update(updateData)
                 .addOnSuccessListener {
-                    // Actualizar la lista local de logros
                     actualizarLogroLocalmente(logroId)
                 }
                 .addOnFailureListener {
-                    // En modo offline, actualizar localmente igualmente
-                    // Se sincronizará cuando haya conexión
                     actualizarLogroLocalmente(logroId)
                 }
         }
     }
 
-    // Actualizar logro localmente (para modo offline)
     private fun actualizarLogroLocalmente(logroId: String) {
         val logrosActuales = _logros.value ?: emptyList()
         val nuevosLogros = logrosActuales.map { logro ->
@@ -384,7 +446,6 @@ class ProfileViewModel : ViewModel() {
         _logros.value = nuevosLogros
     }
 
-    // Actualizar perfil
     fun actualizarPerfil(nuevoNombre: String, nuevaDescripcion: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
@@ -396,12 +457,10 @@ class ProfileViewModel : ViewModel() {
             db.collection("Usuarios").document(currentUser.uid)
                 .update(updates)
                 .addOnSuccessListener {
-                    // Actualizar LiveData localmente
                     _nombre.value = nuevoNombre
                     _username.value = "@${nuevoNombre.lowercase(Locale.ROOT).replace(" ", "")}"
                     _descripcion.value = nuevaDescripcion
 
-                    // Desbloquear logros
                     desbloquearLogro("editar_perfil")
                     if (nuevoNombre.isNotEmpty() && nuevaDescripcion.isNotEmpty() && nuevoNombre != "Nuevo Usuario") {
                         desbloquearLogro("perfil_completo")
@@ -412,7 +471,6 @@ class ProfileViewModel : ViewModel() {
                     _mensaje.value = "Perfil actualizado exitosamente"
                 }
                 .addOnFailureListener { exception ->
-                    // En modo offline, actualizar localmente igualmente
                     _nombre.value = nuevoNombre
                     _username.value = "@${nuevoNombre.lowercase(Locale.ROOT).replace(" ", "")}"
                     _descripcion.value = nuevaDescripcion
@@ -423,7 +481,6 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    // Función para forzar sincronización
     fun sincronizarDatos() {
         _showOfflineMessage.value = false
         cargarDatosUsuario()
@@ -435,9 +492,9 @@ class ProfileViewModel : ViewModel() {
             "Correo" to email,
             "nombre_usuario" to "Nuevo Usuario",
             "descripcion" to "Esta es tu descripción personal. Puedes editarla para contar más sobre ti.",
-            "foto_perf" to "",
-            "seguidores_count" to 0,    // Añadir
-            "siguiendo_count" to 0,     // Añadir
+            "foto_perfil" to "default",
+            "seguidores_count" to 0,
+            "siguiendo_count" to 0,
             "seguidos" to emptyList<String>(),
             "rutas_creadas" to emptyList<String>()
         )
@@ -453,9 +510,8 @@ class ProfileViewModel : ViewModel() {
     }
 }
 
-// MODIFICADO: Clase Ruta con ID
 data class Ruta(
-    val id: String,           // Añadir ID
+    val id: String,
     val titulo: String,
     val descripcion: String,
     val duracion: String
