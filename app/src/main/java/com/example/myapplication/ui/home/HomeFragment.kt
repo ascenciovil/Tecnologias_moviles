@@ -63,8 +63,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private val fotosTomadas = arrayListOf<FotoConCoordenada>()
 
     private var currentLocation: Location? = null
-
-    private val pasosTotales = 523
+  
     private var pasosInicio = -1
     private var pasosActuales = 0
 
