@@ -116,6 +116,11 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             finish()
         }
 
+        toolbar.setNavigationOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
         // 🖼️ Botón "Ver fotos"
         btnFotos.setOnClickListener {

@@ -64,7 +64,10 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private var currentLocation: Location? = null
 
+
     private val pasosTotales = 523
+
+
 
     private var pasosInicio = -1
     private var pasosActuales = 0
@@ -145,6 +148,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                     Toast.makeText(requireContext(), texto, Toast.LENGTH_LONG).show()
                 }
             }
+            arguments?.clear()
         }else{
             getCurrentLocation()
         }

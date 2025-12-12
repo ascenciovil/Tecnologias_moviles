@@ -14,6 +14,7 @@ import com.example.myapplication.databinding.ActivityMainBinding
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
         val navView: BottomNavigationView = binding.navView
 
         // Obtener NavController usando findNavController (manteniendo el código de Joaquín)
+
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
         // Configuración de AppBar (manteniendo configuración de Joaquín)
@@ -208,8 +210,10 @@ class MainActivity : AppCompatActivity() {
                 putParcelableArrayList("ruta_coords", coords)
             })
 
-            // Limpiar el flag para evitar procesamiento duplicado
+
+            // IMPORTANTE: limpiar extras evitando que se reejecute al volver
             intent.removeExtra("go_to_home")
+            intent.removeExtra("ruta_id")
             intent.removeExtra("ruta_coords")
         }
     }
@@ -264,3 +268,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+
