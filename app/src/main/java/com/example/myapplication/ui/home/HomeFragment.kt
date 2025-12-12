@@ -36,8 +36,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import java.io.File
 import com.example.myapplication.FotoConCoordenada
+import com.example.myapplication.VistaRuta
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
@@ -107,6 +109,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             if (!recording) startRecording() else stopRecordingAndGoToSubirRuta()
         }
 
+
         setupSearchBar()
         return binding.root
     }
@@ -115,8 +118,17 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         mMap = googleMap
 
         val coords = arguments?.getParcelableArrayList<LatLng>("ruta_coords")
+        val rutaId = arguments?.getString("ruta_id")
+
 
         if (!coords.isNullOrEmpty()) {
+            binding.btnSeguir.setOnClickListener {
+                val intent = Intent(requireContext(), VistaRuta::class.java)
+                intent.putExtra("ruta_id", rutaId)
+                intent.putExtra("from_seguimiento", true)
+                startActivity(intent)
+            }
+
             dibujarRuta(coords)
             if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -183,6 +195,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private fun startRecording() {
         binding.searchBar.visibility = View.GONE
         binding.btnFoto.visibility = View.VISIBLE
+        val navView = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
+        navView.visibility = View.GONE
         recording = true
         rutaCoords.clear()
         pasosActuales = 0
@@ -344,7 +358,14 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private fun dibujarRuta(coordenadas: List<LatLng>) {
         if (coordenadas.isEmpty()) return
+        binding.searchBar.visibility = View.GONE
+        binding.btnRuta.visibility = View.GONE
+        val navView = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
+        navView.visibility = View.GONE
+        binding.btnSeguir.visibility = View.VISIBLE
         val latLngList = coordenadas.map { LatLng(it.latitude, it.longitude) }
+
+
 
         val polylineOptions = PolylineOptions().width(10f)
         polylineOptions.addAll(latLngList)

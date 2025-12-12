@@ -3,8 +3,11 @@ package com.example.myapplication
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.RatingBar
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -20,6 +23,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
+import android.util.Log
+import com.bumptech.glide.Glide
+import com.google.android.gms.maps.model.MarkerOptions
+import android.widget.ImageView
+
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
@@ -42,11 +50,33 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
     private var coordenadasRuta: List<LatLng> = emptyList()
-    private var imagenesRuta: List<String> = emptyList()
+    private var imagenesRuta: List<FotoConCoordenada> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_vista_ruta)
+
+        val fromSeguimiento = intent.getBooleanExtra("from_seguimiento", false)
+        val popup = findViewById<LinearLayout>(R.id.valoracion)
+        val contentRoot = findViewById<View>(R.id.route_detail_root)
+
+        if (fromSeguimiento) {
+            val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
+            val contentRoot = findViewById<View>(R.id.route_detail_root)
+
+
+            ratingBar.setOnRatingBarChangeListener { _, rating, _ ->
+                // Aquí recibes el valor seleccionado por el usuario
+                println("El usuario seleccionó: $rating estrellas")
+
+                // Si quieres mostrar un toast:
+                Toast.makeText(this, "Has seleccionado $rating estrellas", Toast.LENGTH_SHORT).show()
+                enviarValoracion(rating.toInt())
+            }
+
+            mostrarPopup(popup, contentRoot)
+        }
+
 
         // 🧭 Referencias a vistas
         toolbar = findViewById(R.id.topAppBar)
@@ -81,6 +111,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         btnSeguir.setOnClickListener {
             val intent = Intent(this, MainActivity::class.java)
             intent.putExtra("go_to_home", true)
+            intent.putExtra("ruta_id", rutaId)
             intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta)) // ← lista de LatLng
             startActivity(intent)
             finish()
@@ -93,7 +124,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Esta ruta no tiene fotos", Toast.LENGTH_SHORT).show()
             } else {
                 val intent = Intent(this, GaleriaRutaActivity::class.java)
-                intent.putStringArrayListExtra("imagenes_ruta", ArrayList(imagenesRuta))
+                intent.putExtra("imagenes_ruta", ArrayList(imagenesRuta))
                 startActivity(intent)
             }
         }
@@ -174,11 +205,13 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 val imagenesField = doc.get("imagenes")
                 imagenesRuta = when (imagenesField) {
                     is List<*> -> imagenesField.mapNotNull { item ->
-                        when (item) {
-                            is String -> item
-                            is Map<*, *> -> item["url"] as? String
-                            else -> null
-                        }
+                        if (item is Map<*, *>) {
+                            FotoConCoordenada(
+                                uri = item["url"] as? String ?: "",
+                                lat = (item["lat"] as? Number)?.toDouble(),
+                                lng = (item["lng"] as? Number)?.toDouble()
+                            )
+                        } else null
                     }
                     else -> emptyList()
                 }
@@ -251,10 +284,18 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     // ==========================
     //     MAPA
     // ==========================
+
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         mapReady = true
         dibujarRutaSiLista()
+        googleMap.setOnMarkerClickListener { marker ->
+            val url = marker.tag as? String
+            if (url != null) {
+                mostrarImagenEnDialog(url)
+            }
+            true // ← Importante para evitar que la cámara se mueva automáticamente
+        }
     }
 
     private fun dibujarRutaSiLista() {
@@ -282,6 +323,18 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 )
             }
         }
+
+        imagenesRuta
+            .filter { it.lat != null && it.lng != null }
+            .forEach { foto ->
+                val pos = LatLng(foto.lat!!, foto.lng!!)
+                val marker = googleMap.addMarker(
+                    MarkerOptions()
+                        .position(pos)
+                        .title("Foto")
+                )
+                marker?.tag = foto.uri
+            }
     }
 
     private fun actualizarDistanciaLabel() {
@@ -310,4 +363,89 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         tvDistanceLabel.text = "Distancia de la ruta: $kmRounded km"
     }
+
+
+
+    private fun mostrarPopup(popup: View, root: View) {
+        root.alpha = 0.3f     // oscurecer fondo
+        popup.visibility = View.VISIBLE
+        root.isEnabled = false
+
+
+        popup.bringToFront()  // lo pone sobre todo
+        popup.isClickable = true
+        popup.isFocusable = true
+
+        findViewById<MaterialButton>(R.id.btn_cerrar_valoracion).setOnClickListener {
+            popup.visibility = View.GONE
+            root.isEnabled = true
+            root.alpha = 1f
+        }
+
+    }
+
+    private fun enviarValoracion(valor: Int) {
+
+        val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val rutaId = this.rutaId
+
+        if (userId == null || rutaId == null) {
+            Toast.makeText(this, "No se pudo enviar la valoración", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val valoracionData = mapOf(
+            "valor" to valor,
+            "fecha" to com.google.firebase.Timestamp.now()
+        )
+
+        db.collection("Rutas")
+            .document(rutaId)
+            .collection("Valoraciones")
+            .document(userId)
+            .set(valoracionData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Valoración enviada ✔️", Toast.LENGTH_SHORT).show()
+                actualizarPromedio(rutaId)
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Error al enviar: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun actualizarPromedio(rutaId: String) {
+
+        db.collection("Rutas")
+            .document(rutaId)
+            .collection("Valoraciones")
+            .get()
+            .addOnSuccessListener { snapshot ->
+
+                if (snapshot.isEmpty) return@addOnSuccessListener
+
+                val total = snapshot.documents.sumOf { (it.getLong("valor") ?: 0L).toDouble() }
+                val promedio = total / snapshot.size().toDouble()
+
+                db.collection("Rutas")
+                    .document(rutaId)
+                    .update("rating", promedio)
+            }
+    }
+
+    private fun mostrarImagenEnDialog(url: String) {
+        val dialog = android.app.Dialog(this)
+        dialog.setContentView(R.layout.dialog_imagen) // lo creamos abajo
+        dialog.setCancelable(true)
+
+        val imageView = dialog.findViewById<ImageView>(R.id.dialogImage)
+
+        Glide.with(this)
+            .load(url)
+            .into(imageView)
+
+        dialog.show()
+    }
+
+
 }
+
