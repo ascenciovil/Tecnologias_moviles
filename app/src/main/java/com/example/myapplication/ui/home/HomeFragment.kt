@@ -8,16 +8,24 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
+import com.example.myapplication.FotoConCoordenada
 import com.example.myapplication.R
 import com.example.myapplication.SubirRutaActivity
+import com.example.myapplication.VistaRuta
 import com.example.myapplication.databinding.FragmentHomeBinding
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -25,22 +33,12 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
-import java.util.Locale
-import android.widget.TextView
-import android.net.Uri
-import android.util.Log
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
-import java.io.File
-import com.example.myapplication.FotoConCoordenada
-import com.example.myapplication.VistaRuta
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.bottomnavigation.BottomNavigationView
-
+import java.io.File
+import java.util.Locale
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
@@ -58,12 +56,13 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private val rutaCoords = mutableListOf<LatLng>()
 
     private lateinit var takePictureLauncher: ActivityResultLauncher<Uri>
+    private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
+
     private var photoUri: Uri? = null
+    private var photoFile: File? = null
 
     private val fotosTomadas = arrayListOf<FotoConCoordenada>()
-
     private var currentLocation: Location? = null
-
 
     private val pasosTotales = 523
     private var pasosInicio = -1
@@ -73,29 +72,42 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private var velocidadPromedio = 0.0
     private var tiempoInicio: Long = 0L
 
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
+
+        // ✅ Launcher: tomar foto
         takePictureLauncher = registerForActivityResult(
             ActivityResultContracts.TakePicture()
         ) { success ->
-            if (success && photoUri != null) {
-
-                val ubicacionActual = currentLocation  // ← tu variable con la ubicación
-
+            if (success && photoFile != null) {
+                val ubicacionActual = currentLocation
                 if (ubicacionActual != null) {
                     val foto = FotoConCoordenada(
-                        uri = photoUri.toString(),
+                        uri = photoFile!!.absolutePath,
                         lat = ubicacionActual.latitude,
-                        lng = ubicacionActual.longitude
+                        lng = ubicacionActual.longitude,
+                        origen = "ruta"
                     )
-
                     fotosTomadas.add(foto)
+                } else {
+                    Toast.makeText(requireContext(), "No se pudo obtener ubicación para la foto", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-
+        // ✅ Launcher: permiso cámara (evita crash)
+        cameraPermissionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) {
+                    openCamera()
+                } else {
+                    Toast.makeText(requireContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+                }
+            }
 
         val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -109,7 +121,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             if (!recording) startRecording() else stopRecordingAndGoToSubirRuta()
         }
 
-
         setupSearchBar()
         return binding.root
     }
@@ -120,7 +131,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         val coords = arguments?.getParcelableArrayList<LatLng>("ruta_coords")
         val rutaId = arguments?.getString("ruta_id")
 
-
         if (!coords.isNullOrEmpty()) {
             binding.btnSeguir.setOnClickListener {
                 val intent = Intent(requireContext(), VistaRuta::class.java)
@@ -130,9 +140,16 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             }
 
             dibujarRuta(coords)
-            if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
+            if (ActivityCompat.checkSelfPermission(
+                    requireContext(),
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    requireActivity(),
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    1
+                )
                 return
             }
 
@@ -146,15 +163,15 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                 }
             }
             arguments?.clear()
-        }else{
+        } else {
             getCurrentLocation()
         }
-
     }
 
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
+            != PackageManager.PERMISSION_GRANTED
+        ) {
             ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
             return
         }
@@ -162,6 +179,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         mMap.isMyLocationEnabled = true
         fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
             location?.let {
+                currentLocation = it
                 val point = LatLng(it.latitude, it.longitude)
                 mMap.addMarker(MarkerOptions().position(point).title("Mi ubicación"))
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(point, 15f))
@@ -198,8 +216,11 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         binding.btnFoto.visibility = View.VISIBLE
         val navView = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
         navView.visibility = View.GONE
+
         recording = true
         rutaCoords.clear()
+        fotosTomadas.clear()
+
         pasosActuales = 0
         pasosInicio = -1
         distanciaTotal = 0.0
@@ -219,9 +240,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             priority = Priority.PRIORITY_HIGH_ACCURACY
         }
 
-        binding.btnFoto.setOnClickListener {
-            openCamera()
-        }
+        // ✅ Ahora pide permiso antes de abrir cámara
+        binding.btnFoto.setOnClickListener { requestCameraAndOpen() }
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -231,7 +251,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                     val point = LatLng(location.latitude, location.longitude)
                     currentLocation = location
 
-                    // Añadir coordenada
                     if (rutaCoords.isNotEmpty()) {
                         val last = rutaCoords.last()
 
@@ -256,8 +275,19 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }
 
         if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED) {
+            == PackageManager.PERMISSION_GRANTED
+        ) {
             fusedLocationClient.requestLocationUpdates(request, locationCallback, null)
+        }
+    }
+
+    private fun requestCameraAndOpen() {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        } else {
+            openCamera()
         }
     }
 
@@ -291,6 +321,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         recording = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         sensorManager.unregisterListener(this)
+
         binding.btnRuta.text = "Empezar ruta"
 
         if (rutaCoords.isEmpty()) {
@@ -306,8 +337,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             animateDecimalTextView(binding.distanciaText, distanciaTotal, " km") {
                 requireActivity().runOnUiThread { binding.velocidadText.visibility = View.VISIBLE }
                 animateDecimalTextView(binding.velocidadText, velocidadPromedio, " km/h") {
-
-                    //Mostrar resumen final
                     requireActivity().runOnUiThread {
                         binding.resumenPasos.visibility = View.VISIBLE
                         binding.resumenPasos.text =
@@ -325,7 +354,13 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }
     }
 
-    private fun animateNumberTextView(textView: TextView, from: Int, to: Int, suffix: String = "", onEnd: (() -> Unit)? = null) {
+    private fun animateNumberTextView(
+        textView: TextView,
+        from: Int,
+        to: Int,
+        suffix: String = "",
+        onEnd: (() -> Unit)? = null
+    ) {
         Thread {
             for (i in from..to) {
                 requireActivity().runOnUiThread { textView.text = "$i$suffix" }
@@ -335,7 +370,12 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }.start()
     }
 
-    private fun animateDecimalTextView(textView: TextView, to: Double, suffix: String = "", onEnd: (() -> Unit)? = null) {
+    private fun animateDecimalTextView(
+        textView: TextView,
+        to: Double,
+        suffix: String = "",
+        onEnd: (() -> Unit)? = null
+    ) {
         val steps = 100
         val inc = to / steps
         Thread {
@@ -350,17 +390,27 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }.start()
     }
 
+    // ✅ Foto persistente (externalFilesDir) + fallback
     private fun openCamera() {
-        val imageFile = File.createTempFile("photo_", ".jpg", requireContext().cacheDir)
+        try {
+            val dir = requireContext().getExternalFilesDir("pending_photos") ?: requireContext().cacheDir
+            if (!dir.exists()) dir.mkdirs()
 
-        photoUri = FileProvider.getUriForFile(
-            requireContext(),
-            "${requireContext().packageName}.provider",
-            imageFile
-        )
+            val imageFile = File(dir, "photo_${System.currentTimeMillis()}.jpg")
+            photoFile = imageFile
 
-        photoUri?.let { uri ->
-            takePictureLauncher.launch(uri)
+            photoUri = FileProvider.getUriForFile(
+                requireContext(),
+                "${requireContext().packageName}.provider",
+                imageFile
+            )
+
+            photoUri?.let { uri ->
+                takePictureLauncher.launch(uri)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(requireContext(), "Error abriendo cámara: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -371,15 +421,13 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         val navView = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
         navView.visibility = View.GONE
         binding.btnSeguir.visibility = View.VISIBLE
+
         val latLngList = coordenadas.map { LatLng(it.latitude, it.longitude) }
-
-
 
         val polylineOptions = PolylineOptions().width(10f)
         polylineOptions.addAll(latLngList)
         mMap.addPolyline(polylineOptions)
 
-        // Centrar la cámara
         try {
             val boundsBuilder = LatLngBounds.Builder()
             latLngList.forEach { boundsBuilder.include(it) }
@@ -387,12 +435,9 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             val padding = 100
             val cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding)
             mMap.moveCamera(cameraUpdate)
-        } catch (e: IllegalStateException) {
-            // Esto pasa cuando todos los puntos son exactamente iguales
+        } catch (_: IllegalStateException) {
             if (latLngList.isNotEmpty()) {
-                mMap.moveCamera(
-                    CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f)
-                )
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f))
             }
         }
     }
@@ -406,9 +451,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }
 
         val distanciaMetros = locActual.distanceTo(locInicio)
-        return distanciaMetros / 1000.0 // km
+        return distanciaMetros / 1000.0
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()

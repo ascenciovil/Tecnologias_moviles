@@ -4,7 +4,6 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,13 +17,17 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import com.example.myapplication.PendingUploadsActivity
 import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.example.myapplication.databinding.FragmentProfileBinding
-import com.github.dhaval2404.imagepicker.ImagePicker
+import com.example.myapplication.offline.PendingUploadDatabase
+import com.example.myapplication.offline.UploadScheduler
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ProfileFragment : Fragment() {
 
@@ -124,7 +127,45 @@ class ProfileFragment : Fragment() {
             mostrarOpcionesFotoPerfil()
         }
 
+        // ✅ NUEVO: abrir pantalla de pendientes
+        binding.cardPendingUploads.setOnClickListener {
+            startActivity(Intent(requireContext(), PendingUploadsActivity::class.java))
+        }
+
         profileViewModel.cargarDatosUsuario()
+
+        // ✅ NUEVO: cargar contador al entrar
+        refreshPendingCount()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // ✅ refresca contador al volver desde PendingUploadsActivity
+        refreshPendingCount()
+    }
+
+    // ✅ NUEVO: contador de pendientes (PENDING/FAILED)
+    private fun refreshPendingCount() {
+        lifecycleScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                val db = PendingUploadDatabase.getInstance(requireContext())
+                db.dao().getAllPendingOrFailed().size
+            }
+
+            binding.tvPendingUploadsCount.text = count.toString()
+            binding.cardPendingUploads.visibility = if (count == 0) View.GONE else View.VISIBLE
+        }
+    }
+
+    // ✅ NUEVO: al reintentar conexión, también re-encolar subidas pendientes
+    private fun enqueueAllPendingUploads() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                val db = PendingUploadDatabase.getInstance(requireContext())
+                val pendientes = db.dao().getAllPendingOrFailed()
+                pendientes.forEach { UploadScheduler.enqueue(requireContext(), it.id) }
+            }
+        }
     }
 
     private fun updateUIForConnectionState(isOnline: Boolean) {
@@ -154,9 +195,13 @@ class ProfileFragment : Fragment() {
 
         profileViewModel.sincronizarDatos()
 
+        // ✅ NUEVO: reintenta también las subidas pendientes
+        enqueueAllPendingUploads()
+
         binding.root.postDelayed({
             binding.offlineProgressBar.visibility = View.GONE
             binding.retryButton.visibility = View.VISIBLE
+            refreshPendingCount()
         }, 3000)
     }
 
@@ -174,7 +219,8 @@ class ProfileFragment : Fragment() {
     }
 
     private fun mostrarDialogoEditarPerfil() {
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_editar_perfil, null)
+        val dialogView =
+            LayoutInflater.from(requireContext()).inflate(R.layout.dialog_editar_perfil, null)
         val editNombre = dialogView.findViewById<EditText>(R.id.edit_nombre)
         val editDescripcion = dialogView.findViewById<EditText>(R.id.edit_descripcion)
         val btnCambiarFoto = dialogView.findViewById<TextView>(R.id.btn_cambiar_foto)
@@ -187,7 +233,6 @@ class ProfileFragment : Fragment() {
         editNombre.setText(nombreActual)
         editDescripcion.setText(descripcionActual)
 
-        // Cargar foto actual en el diálogo
         if (!fotoActual.isNullOrEmpty() && fotoActual != "default") {
             Glide.with(this)
                 .load(fotoActual)
@@ -203,7 +248,7 @@ class ProfileFragment : Fragment() {
         val dialog = AlertDialog.Builder(requireContext())
             .setTitle("Editar Perfil")
             .setView(dialogView)
-            .setPositiveButton("Guardar") { dialogInterface, which ->
+            .setPositiveButton("Guardar") { _, _ ->
                 val nuevoNombre = editNombre.text.toString().trim()
                 val nuevaDescripcion = editDescripcion.text.toString().trim()
 
@@ -240,10 +285,11 @@ class ProfileFragment : Fragment() {
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Foto de perfil")
-            .setItems(opciones) { dialog, which ->
+            .setItems(opciones) { _, which ->
                 when (which) {
                     0 -> seleccionarDeGaleria()
                     1 -> eliminarFotoActual()
+
                 }
             }
 
@@ -251,7 +297,6 @@ class ProfileFragment : Fragment() {
     }
 
     private fun seleccionarDeGaleria() {
-        // Versión simplificada sin ImagePicker complicado
         val intent = Intent(Intent.ACTION_PICK)
         intent.type = "image/*"
         startActivityForResult(intent, REQUEST_CODE_GALLERY)
@@ -259,7 +304,6 @@ class ProfileFragment : Fragment() {
 
     private fun tomarFoto() {
         Toast.makeText(requireContext(), "Funcionalidad de cámara por implementar", Toast.LENGTH_SHORT).show()
-        // Para simplificar, también redirige a galería
         seleccionarDeGaleria()
     }
 
@@ -267,7 +311,7 @@ class ProfileFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Eliminar foto")
             .setMessage("¿Estás seguro de que quieres eliminar tu foto de perfil?")
-            .setPositiveButton("Eliminar") { dialog, which ->
+            .setPositiveButton("Eliminar") { _, _ ->
                 profileViewModel.eliminarFotoPerfil()
             }
             .setNegativeButton("Cancelar", null)
@@ -348,15 +392,11 @@ class ProfileFragment : Fragment() {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply {
-                        if (index > 0) {
-                            topMargin = 12.dpToPx()
-                        }
+                        if (index > 0) topMargin = 12.dpToPx()
                     }
 
                     val isOnline = profileViewModel.isOnline.value ?: true
-                    if (!isOnline) {
-                        alpha = 0.8f
-                    }
+                    if (!isOnline) alpha = 0.8f
                 }
 
                 val filaSuperior = LinearLayout(requireContext()).apply {
@@ -422,9 +462,7 @@ class ProfileFragment : Fragment() {
                         0,
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         1f
-                    ).apply {
-                        marginEnd = 8.dpToPx()
-                    }
+                    ).apply { marginEnd = 8.dpToPx() }
                     isClickable = true
 
                     setOnClickListener {
@@ -482,8 +520,11 @@ class ProfileFragment : Fragment() {
     private fun mostrarDialogoConfirmacionOcultar(ruta: com.example.myapplication.ui.profile.Ruta) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Ocultar ruta")
-            .setMessage("¿Estás seguro de que quieres ocultar la ruta '${ruta.titulo}'?\n\nLa ruta no se eliminará permanentemente, solo dejará de ser visible en tu perfil.")
-            .setPositiveButton("Ocultar") { dialog, which ->
+            .setMessage(
+                "¿Estás seguro de que quieres ocultar la ruta '${ruta.titulo}'?\n\n" +
+                        "La ruta no se eliminará permanentemente, solo dejará de ser visible en tu perfil."
+            )
+            .setPositiveButton("Ocultar") { _, _ ->
                 profileViewModel.ocultarRuta(ruta.id)
             }
             .setNegativeButton("Cancelar", null)
@@ -525,16 +566,12 @@ class ProfileFragment : Fragment() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                if (index > 0) {
-                    topMargin = 8.dpToPx()
-                }
+                if (index > 0) topMargin = 8.dpToPx()
             }
             background = ContextCompat.getDrawable(requireContext(), R.drawable.background_logro_card)
 
             val isOnline = profileViewModel.isOnline.value ?: true
-            if (!isOnline && !logro.obtenido) {
-                alpha = 0.7f
-            }
+            if (!isOnline && !logro.obtenido) alpha = 0.7f
 
             val iconoTextView = TextView(requireContext()).apply {
                 text = logro.icono
@@ -542,9 +579,7 @@ class ProfileFragment : Fragment() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginEnd = 16.dpToPx()
-                }
+                ).apply { marginEnd = 16.dpToPx() }
             }
 
             val infoLayout = LinearLayout(requireContext()).apply {
@@ -590,14 +625,10 @@ class ProfileFragment : Fragment() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginStart = 16.dpToPx()
-                }
+                ).apply { marginStart = 16.dpToPx() }
             }
 
-            if (!logro.obtenido) {
-                alpha = 0.6f
-            }
+            if (!logro.obtenido) alpha = 0.6f
 
             addView(iconoTextView)
             addView(infoLayout)
