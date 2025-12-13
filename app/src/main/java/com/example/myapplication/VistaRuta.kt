@@ -15,7 +15,9 @@ import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.bumptech.glide.Glide
+import com.example.myapplication.ui.profile.ProfileViewModel
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -49,6 +51,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private var rutaId: String? = null
     private var userId: String? = null
+    private lateinit var profileViewModel: ProfileViewModel
 
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
@@ -58,6 +61,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_vista_ruta)
+
+        // Inicializar ViewModel para logros
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
 
         val fromSeguimiento = intent.getBooleanExtra("from_seguimiento", false)
         val popup = findViewById<LinearLayout>(R.id.valoracion)
@@ -97,11 +103,14 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         // Cargar datos desde Firestore
         cargarDatosRuta(rutaId!!)
 
+        // Registrar exploración de ruta para logros
+        registrarExploracionRuta()
+
         // ✅ Back: volver a lista de rutas (no al mapa/home)
         toolbar.setNavigationOnClickListener {
             val i = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra("destination", "rutas_fragment") // <-- ajusta al nombre que uses en MainActivity
+                putExtra("destination", "rutas_fragment")
             }
             startActivity(i)
             finish()
@@ -135,6 +144,24 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 i.putExtra("ruta_id", id)
                 startActivity(i)
             }
+        }
+    }
+
+    private fun registrarExploracionRuta() {
+        // Registrar exploración en el ViewModel para logros
+        profileViewModel.registrarExploracionRuta()
+
+        // También actualizar en Firestore si es necesario
+        val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        if (currentUser != null) {
+            db.collection("Usuarios").document(currentUser.uid)
+                .update("rutas_exploradas", com.google.firebase.firestore.FieldValue.increment(1))
+                .addOnSuccessListener {
+                    Log.d("VistaRuta", "Ruta explorada registrada en Firestore")
+                }
+                .addOnFailureListener { e ->
+                    Log.e("VistaRuta", "Error al registrar ruta explorada", e)
+                }
         }
     }
 
@@ -280,7 +307,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         )
 
 
-        // Fin: bandera (anchor abajo-centro para que no quede “corrida”)
+        // Fin: bandera (anchor abajo-centro para que no quede "corrida")
         googleMap.addMarker(
             MarkerOptions()
                 .position(fin)

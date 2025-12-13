@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -53,10 +54,14 @@ class ProfileFragment : Fragment() {
         // Observar contadores de seguidores y siguiendo
         profileViewModel.seguidoresCount.observe(viewLifecycleOwner) { count ->
             binding.textSeguidoresCount.text = count.toString()
+            // Verificar logros sociales cuando cambie el contador
+            profileViewModel.verificarLogrosSociales()
         }
 
         profileViewModel.siguiendoCount.observe(viewLifecycleOwner) { count ->
             binding.textSiguiendoCount.text = count.toString()
+            // Verificar logros sociales cuando cambie el contador
+            profileViewModel.verificarLogrosSociales()
         }
 
         profileViewModel.mensaje.observe(viewLifecycleOwner) { mensaje ->
@@ -87,6 +92,8 @@ class ProfileFragment : Fragment() {
 
         profileViewModel.rutasPublicadas.observe(viewLifecycleOwner) { rutas ->
             setupRutasList(rutas)
+            // Verificar logros de creación cuando cambien las rutas
+            profileViewModel.verificarLogrosCreacion()
         }
 
         profileViewModel.logros.observe(viewLifecycleOwner) { logros ->
@@ -142,6 +149,9 @@ class ProfileFragment : Fragment() {
         super.onResume()
         // ✅ refresca contador al volver desde PendingUploadsActivity
         refreshPendingCount()
+        // Verificar logros al volver a la pantalla
+        profileViewModel.verificarLogrosPerfil()
+        profileViewModel.verificarLogrosSociales()
     }
 
     // ✅ NUEVO: contador de pendientes (PENDING/FAILED)
@@ -289,10 +299,8 @@ class ProfileFragment : Fragment() {
                 when (which) {
                     0 -> seleccionarDeGaleria()
                     1 -> eliminarFotoActual()
-
                 }
             }
-
             .show()
     }
 
@@ -300,11 +308,6 @@ class ProfileFragment : Fragment() {
         val intent = Intent(Intent.ACTION_PICK)
         intent.type = "image/*"
         startActivityForResult(intent, REQUEST_CODE_GALLERY)
-    }
-
-    private fun tomarFoto() {
-        Toast.makeText(requireContext(), "Funcionalidad de cámara por implementar", Toast.LENGTH_SHORT).show()
-        seleccionarDeGaleria()
     }
 
     private fun eliminarFotoActual() {
@@ -475,6 +478,9 @@ class ProfileFragment : Fragment() {
                             android.R.anim.fade_in,
                             android.R.anim.fade_out
                         )
+
+                        // Registrar exploración de ruta para logros
+                        profileViewModel.registrarExploracionRuta()
                     }
                 }
 
@@ -605,21 +611,22 @@ class ProfileFragment : Fragment() {
                 setPadding(0, 4.dpToPx(), 0, 0)
             }
 
-            if (!isOnline && !logro.obtenido) {
-                val offlineInfo = TextView(requireContext()).apply {
-                    text = "Conecta para desbloquear"
+            // Mostrar progreso para logros no obtenidos
+            if (!logro.obtenido && logro.requerido > 1) {
+                val progresoTextView = TextView(requireContext()).apply {
+                    text = "${logro.progresoActual}/${logro.requerido}"
                     textSize = 12f
                     setTextColor(0xFF4285F4.toInt())
-                    setPadding(0, 4.dpToPx(), 0, 0)
+                    setPadding(0, 2.dpToPx(), 0, 0)
                 }
-                infoLayout.addView(offlineInfo)
+                infoLayout.addView(progresoTextView)
             }
 
             infoLayout.addView(nombreTextView)
             infoLayout.addView(descripcionTextView)
 
             val estadoTextView = TextView(requireContext()).apply {
-                text = if (logro.obtenido) "✓" else "🔒"
+                text = if (logro.obtenido) "✅" else "🔒"
                 textSize = 18f
                 setTextColor(if (logro.obtenido) 0xFF4285F4.toInt() else 0xFFCCCCCC.toInt())
                 layoutParams = LinearLayout.LayoutParams(

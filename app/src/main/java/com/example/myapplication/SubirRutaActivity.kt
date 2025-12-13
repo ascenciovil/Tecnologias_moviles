@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.myapplication.offline.PendingCoord
@@ -13,6 +14,7 @@ import com.example.myapplication.offline.PendingPhoto
 import com.example.myapplication.offline.PendingRouteEntity
 import com.example.myapplication.offline.PendingUploadDatabase
 import com.example.myapplication.offline.UploadScheduler
+import com.example.myapplication.ui.profile.ProfileViewModel
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -33,6 +35,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var descripcionRuta: EditText
     private lateinit var subirBtn: Button
     private lateinit var cancelarBtn: Button
+    private lateinit var profileViewModel: ProfileViewModel
 
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
 
@@ -61,6 +64,9 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.subir_ruta)
+
+        // Inicializar ViewModel para logros
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
 
         gridLayout = findViewById(R.id.layoutgrid)
         nombreRuta = findViewById(R.id.routename)
@@ -219,8 +225,17 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 Toast.LENGTH_LONG
             ).show()
 
+            // Registrar logro de creación de ruta
+            registrarCreacionRuta()
+
             volverAMain()
         }
+    }
+
+    private fun registrarCreacionRuta() {
+        // Incrementar progreso de logros de creación
+        profileViewModel.incrementarProgresoLogro("tocando_pasto")
+        profileViewModel.incrementarProgresoLogro("cartografo")
     }
 
     private fun volverAMain() {

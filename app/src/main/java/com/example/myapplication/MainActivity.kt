@@ -1,11 +1,13 @@
 package com.example.myapplication
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
@@ -13,6 +15,7 @@ import androidx.navigation.ui.setupWithNavController
 import com.example.myapplication.databinding.ActivityMainBinding
 import com.example.myapplication.offline.PendingUploadDatabase
 import com.example.myapplication.offline.UploadScheduler
+import com.example.myapplication.ui.profile.ProfileViewModel
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.Dispatchers
@@ -23,12 +26,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var isTemporaryProfile = false
     private lateinit var onBackPressedCallback: OnBackPressedCallback
+    private lateinit var prefs: SharedPreferences
+    private lateinit var profileViewModel: ProfileViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Inicializar SharedPreferences y ViewModel
+        prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
 
         val navView: BottomNavigationView = binding.navView
 
@@ -93,8 +102,29 @@ class MainActivity : AppCompatActivity() {
         isTemporaryProfile = false
         handleDeepLink(navController)
 
+        // Verificar y registrar primer inicio para logros
+        verificarPrimerInicio()
+
         // al abrir la app, re-encola cualquier subida pendiente/failed
         kickPendingUploads()
+    }
+
+    // Verificar si es el primer inicio para logro de bienvenida
+    private fun verificarPrimerInicio() {
+        val firstLaunch = prefs.getBoolean("first_launch", true)
+
+        Log.d("MainActivity", "Primer inicio: $firstLaunch")
+
+        if (firstLaunch) {
+            // Marcar que ya no es el primer inicio
+            prefs.edit().putBoolean("first_launch", false).apply()
+
+            Log.d("MainActivity", "✅ Es el primer inicio de la app")
+
+            // El logro "Bienvenido" se desbloqueará automáticamente cuando el usuario
+            // cargue su perfil por primera vez en ProfileViewModel
+            // No necesitamos hacer nada más aquí, ya que el ViewModel maneja esto
+        }
     }
 
     //re-encolar pendientes guardados en Room

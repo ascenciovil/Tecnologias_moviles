@@ -196,10 +196,7 @@ class DashboardFragment : Fragment() {
             binding.textUsername.text = username
         }
 
-        dashboardViewModel.email.observe(viewLifecycleOwner) { email ->
-            Log.d("DashboardFragment", "Actualizando email: $email")
-            binding.textEmail.text = email
-        }
+
 
         // NUEVO: Observar foto de perfil
         dashboardViewModel.fotoPerfilUrl.observe(viewLifecycleOwner) { url ->
