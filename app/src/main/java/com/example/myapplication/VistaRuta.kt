@@ -30,6 +30,8 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
+import com.google.android.gms.maps.model.CircleOptions
+
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
@@ -95,9 +97,13 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         // Cargar datos desde Firestore
         cargarDatosRuta(rutaId!!)
 
-        // Back
+        // ✅ Back: volver a lista de rutas (no al mapa/home)
         toolbar.setNavigationOnClickListener {
-            onBackPressedDispatcher.onBackPressed()
+            val i = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("destination", "rutas_fragment") // <-- ajusta al nombre que uses en MainActivity
+            }
+            startActivity(i)
             finish()
         }
 
@@ -248,7 +254,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private fun dibujarRutaSiLista() {
         if (!mapReady || coordenadasRuta.isEmpty()) return
 
-        googleMap.clear() // ✅ para que no se duplique al redibujar
+        googleMap.clear() // evita duplicados
 
         val latLngList = coordenadasRuta.map { LatLng(it.latitude, it.longitude) }
 
@@ -259,35 +265,32 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 .addAll(latLngList)
         )
 
-        // ✅ Marcadores inicio/fin
         val inicio = latLngList.first()
         val fin = latLngList.last()
 
-        // Punto “siguiente” para orientar la flecha (si hay pocos puntos, usa el fin)
-        val nextIndex = minOf(3, latLngList.lastIndex) // usa el 2-4 punto si existe
-        val siguiente = latLngList[nextIndex]
 
-        // Bearing desde inicio hacia el siguiente punto
-        val bearing = bearingBetween(inicio, siguiente)
-
-        googleMap.addMarker(
-            MarkerOptions()
-                .position(inicio)
-                .title("Inicio")
-                .icon(bitmapDescriptorFromVector(R.drawable.ic_start_arrow))
-                .anchor(0.5f, 0.5f)
-                .flat(true)
-                .rotation(bearing)
+        // Inicio: flecha (anchor centrado, flat)
+        googleMap.addCircle(
+            CircleOptions()
+                .center(inicio)
+                .radius(9.0)
+                .strokeWidth(0f)
+                .fillColor(0x332ECC71) // verde transparente
+                .zIndex(9f)
         )
 
+
+        // Fin: bandera (anchor abajo-centro para que no quede “corrida”)
         googleMap.addMarker(
             MarkerOptions()
                 .position(fin)
                 .title("Fin")
-                .icon(bitmapDescriptorFromVector(R.drawable.ic_finish_flag))
+                .icon(bitmapDescriptorFromVector(R.drawable.marker_finish_flag))
+                .anchor(0.5f, 1.0f)
+                .zIndex(6f)
         )
 
-        // Centrar cámara
+        // Cámara
         try {
             val boundsBuilder = LatLngBounds.Builder()
             latLngList.forEach { boundsBuilder.include(it) }
@@ -297,7 +300,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(inicio, 17f))
         }
 
-        // ✅ Marcadores de fotos SOLO "ruta"
+        // ✅ Fotos SOLO "ruta" con ícono de cámara
+        val cameraIcon = bitmapDescriptorFromVector(R.drawable.marker_camera)
+
         imagenesRuta
             .filter { it.uri.isNotBlank() }
             .filter { it.lat != null && it.lng != null }
@@ -308,19 +313,12 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                     MarkerOptions()
                         .position(pos)
                         .title("Foto")
+                        .icon(cameraIcon)
+                        .anchor(0.5f, 0.5f)
+                        .zIndex(3f)
                 )
                 marker?.tag = foto.uri
             }
-    }
-
-    private fun bearingBetween(a: LatLng, b: LatLng): Float {
-        val result = FloatArray(2)
-        Location.distanceBetween(
-            a.latitude, a.longitude,
-            b.latitude, b.longitude,
-            result
-        )
-        return result[1] // bearing en grados
     }
 
 
