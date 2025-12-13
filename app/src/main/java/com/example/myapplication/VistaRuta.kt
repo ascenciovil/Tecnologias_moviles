@@ -1,47 +1,52 @@
 package com.example.myapplication
 
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.RatingBar
-import android.view.View
+import androidx.annotation.DrawableRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
-import android.content.Intent
-import com.bumptech.glide.Glide
-import com.google.android.gms.maps.model.MarkerOptions
-import android.widget.ImageView
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
-    // 🔧 UI
+    // UI
     private lateinit var toolbar: MaterialToolbar
     private lateinit var btnSeguir: MaterialButton
     private lateinit var btnFotos: MaterialButton
     private lateinit var btnComentarios: MaterialButton
     private lateinit var tvDescription: TextView
     private lateinit var tvDistanceLabel: TextView
-
     private lateinit var tvAutorRuta: TextView
     private lateinit var tvRatingRuta: TextView
 
-    // 🔧 Firebase / mapa
+    // Firebase / mapa
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private var rutaId: String? = null
-    private var userId: String? = null  // Variable para almacenar el userId del autor
+    private var userId: String? = null
 
     private lateinit var googleMap: GoogleMap
     private var mapReady = false
@@ -58,78 +63,71 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         if (fromSeguimiento) {
             val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
-
             ratingBar.setOnRatingBarChangeListener { _, rating, _ ->
                 Toast.makeText(this, "Has seleccionado $rating estrellas", Toast.LENGTH_SHORT).show()
                 enviarValoracion(rating.toInt())
             }
-
             mostrarPopup(popup, contentRoot)
         }
 
-        // 🧭 Referencias a vistas
+        // Referencias a vistas
         toolbar = findViewById(R.id.topAppBar)
         btnSeguir = findViewById(R.id.btn_seguir_ruta)
         btnFotos = findViewById(R.id.btn_ver_fotos)
         btnComentarios = findViewById(R.id.btn_ver_comentarios)
         tvDescription = findViewById(R.id.tv_description)
         tvDistanceLabel = findViewById(R.id.tv_distance_label)
-
         tvAutorRuta = findViewById(R.id.tv_autor_ruta)
         tvRatingRuta = findViewById(R.id.tv_rating_ruta)
 
-        // 🔹 Obtener ID de la ruta desde el Intent
+        // Obtener ID de la ruta
         rutaId = intent.getStringExtra("ruta_id")
-        if (rutaId == null) {
+        if (rutaId.isNullOrEmpty()) {
             Toast.makeText(this, "Error: ID de ruta no recibido", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
 
-        // 🗺️ Inicializar mapa
-        val mapFragment =
-            supportFragmentManager.findFragmentById(R.id.mapRuta) as SupportMapFragment
+        // Inicializar mapa
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.mapRuta) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        // 📥 Cargar datos reales desde Firestore
+        // Cargar datos desde Firestore
         cargarDatosRuta(rutaId!!)
 
-        // 🔙 Botón back del toolbar
+        // Back
         toolbar.setNavigationOnClickListener {
-            val intent = Intent(this, MainActivity::class.java)
-            startActivity(intent)
+            onBackPressedDispatcher.onBackPressed()
             finish()
         }
 
         btnSeguir.setOnClickListener {
-            val intent = Intent(this, MainActivity::class.java)
-            intent.putExtra("go_to_home", true)
-            intent.putExtra("ruta_id", rutaId)
-            intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta))
-            startActivity(intent)
+            val i = Intent(this, MainActivity::class.java)
+            i.putExtra("go_to_home", true)
+            i.putExtra("ruta_id", rutaId)
+            i.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta))
+            startActivity(i)
             finish()
         }
 
-        // 🖼️ Botón "Ver fotos"
         btnFotos.setOnClickListener {
             if (imagenesRuta.isEmpty()) {
                 Toast.makeText(this, "Esta ruta no tiene fotos", Toast.LENGTH_SHORT).show()
             } else {
-                val intent = Intent(this, GaleriaRutaActivity::class.java)
-                intent.putExtra("imagenes_ruta", ArrayList(imagenesRuta))
-                startActivity(intent)
+                val i = Intent(this, GaleriaRutaActivity::class.java)
+                i.putExtra("imagenes_ruta", ArrayList(imagenesRuta))
+                startActivity(i)
             }
         }
 
-        // 💬 Botón "Ver comentarios"
         btnComentarios.setOnClickListener {
             val id = rutaId
             if (id.isNullOrEmpty()) {
                 Toast.makeText(this, "No se pudo obtener la ruta", Toast.LENGTH_SHORT).show()
             } else {
-                val intent = Intent(this, ComentariosActivity::class.java)
-                intent.putExtra("ruta_id", id)
-                startActivity(intent)
+                val i = Intent(this, ComentariosActivity::class.java)
+                i.putExtra("ruta_id", id)
+                startActivity(i)
             }
         }
     }
@@ -149,21 +147,14 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
                 val nombre = doc.getString("nombre") ?: "Ruta sin nombre"
                 val descripcion = doc.getString("descripcion") ?: "Sin descripción"
-
-                // rating: puede venir como Long o Double
                 val ratingNumber = doc.get("rating") as? Number
                 val rating = ratingNumber?.toDouble() ?: 0.0
-
-                // userId para buscar el autor
                 userId = doc.getString("userId") ?: ""
 
-                // coordenadas...
                 coordenadasRuta = (doc.get("coordenadas") as? List<*>)
                     ?.mapNotNull { value ->
                         when (value) {
-                            is com.google.firebase.firestore.GeoPoint -> {
-                                LatLng(value.latitude, value.longitude)
-                            }
+                            is com.google.firebase.firestore.GeoPoint -> LatLng(value.latitude, value.longitude)
                             is Map<*, *> -> {
                                 val lat = (value["latitude"] as? Number)?.toDouble()
                                 val lng = (value["longitude"] as? Number)?.toDouble()
@@ -171,19 +162,15 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                             }
                             else -> null
                         }
-                    }
-                    ?: emptyList()
+                    } ?: emptyList()
 
-                // ✅ IMAGENES (CORREGIDO):
-                // - lee url/lat/lng/origen
-                // - filtra url null o vacía
+                // IMAGENES (url/lat/lng/origen)
                 val imagenesField = doc.get("imagenes")
                 imagenesRuta = when (imagenesField) {
                     is List<*> -> imagenesField.mapNotNull { item ->
                         val m = item as? Map<*, *> ?: return@mapNotNull null
-
                         val url = m["url"] as? String
-                        if (url.isNullOrBlank()) return@mapNotNull null  // ✅ evita null/"" rotos
+                        if (url.isNullOrBlank()) return@mapNotNull null
 
                         val lat = (m["lat"] as? Number)?.toDouble()
                         val lng = (m["lng"] as? Number)?.toDouble()
@@ -209,10 +196,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                         .addOnSuccessListener { userDoc ->
                             val autor = userDoc.getString("nombre_usuario") ?: "Autor desconocido"
                             tvAutorRuta.text = "Autor: $autor"
-
-                            tvAutorRuta.setOnClickListener {
-                                navigateToUserProfile(userId!!, autor)
-                            }
+                            tvAutorRuta.setOnClickListener { navigateToUserProfile(userId!!, autor) }
                         }
                         .addOnFailureListener {
                             tvAutorRuta.text = "Autor: desconocido"
@@ -231,20 +215,17 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     }
 
     // ==========================
-    //     NAVEGACIÓN AL PERFIL
+    //     PERFIL
     // ==========================
     private fun navigateToUserProfile(userId: String, userName: String) {
-        Log.d("VistaRuta", "Navigating to user profile: $userName ($userId)")
-
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val i = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra("user_id", userId)
             putExtra("user_name", userName)
             putExtra("destination", "dashboard_fragment")
             putExtra("force_reload", true)
         }
-
-        startActivity(intent)
+        startActivity(i)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
@@ -254,41 +235,69 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         mapReady = true
-        dibujarRutaSiLista()
 
         googleMap.setOnMarkerClickListener { marker ->
             val url = marker.tag as? String
-            if (url != null) {
-                mostrarImagenEnDialog(url)
-            }
+            if (!url.isNullOrEmpty()) mostrarImagenEnDialog(url)
             true
         }
+
+        dibujarRutaSiLista()
     }
 
     private fun dibujarRutaSiLista() {
         if (!mapReady || coordenadasRuta.isEmpty()) return
 
+        googleMap.clear() // ✅ para que no se duplique al redibujar
+
         val latLngList = coordenadasRuta.map { LatLng(it.latitude, it.longitude) }
 
-        val polylineOptions = PolylineOptions().width(10f)
-        polylineOptions.addAll(latLngList)
-        googleMap.addPolyline(polylineOptions)
+        // Polyline
+        googleMap.addPolyline(
+            PolylineOptions()
+                .width(10f)
+                .addAll(latLngList)
+        )
 
+        // ✅ Marcadores inicio/fin
+        val inicio = latLngList.first()
+        val fin = latLngList.last()
+
+        // Punto “siguiente” para orientar la flecha (si hay pocos puntos, usa el fin)
+        val nextIndex = minOf(3, latLngList.lastIndex) // usa el 2-4 punto si existe
+        val siguiente = latLngList[nextIndex]
+
+        // Bearing desde inicio hacia el siguiente punto
+        val bearing = bearingBetween(inicio, siguiente)
+
+        googleMap.addMarker(
+            MarkerOptions()
+                .position(inicio)
+                .title("Inicio")
+                .icon(bitmapDescriptorFromVector(R.drawable.ic_start_arrow))
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+                .rotation(bearing)
+        )
+
+        googleMap.addMarker(
+            MarkerOptions()
+                .position(fin)
+                .title("Fin")
+                .icon(bitmapDescriptorFromVector(R.drawable.ic_finish_flag))
+        )
+
+        // Centrar cámara
         try {
             val boundsBuilder = LatLngBounds.Builder()
             latLngList.forEach { boundsBuilder.include(it) }
             val bounds = boundsBuilder.build()
-            val padding = 100
-            val cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding)
-            googleMap.moveCamera(cameraUpdate)
-        } catch (e: IllegalStateException) {
-            if (latLngList.isNotEmpty()) {
-                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f))
-            }
+            googleMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100))
+        } catch (_: IllegalStateException) {
+            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(inicio, 17f))
         }
 
-        // ✅ MARCADORES SOLO PARA FOTOS "ruta"
-        // Fallback: si origen == null (rutas antiguas), usamos lat/lng != null
+        // ✅ Marcadores de fotos SOLO "ruta"
         imagenesRuta
             .filter { it.uri.isNotBlank() }
             .filter { it.lat != null && it.lng != null }
@@ -302,6 +311,32 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 )
                 marker?.tag = foto.uri
             }
+    }
+
+    private fun bearingBetween(a: LatLng, b: LatLng): Float {
+        val result = FloatArray(2)
+        Location.distanceBetween(
+            a.latitude, a.longitude,
+            b.latitude, b.longitude,
+            result
+        )
+        return result[1] // bearing en grados
+    }
+
+
+    private fun bitmapDescriptorFromVector(@DrawableRes vectorResId: Int): BitmapDescriptor {
+        val drawable = ContextCompat.getDrawable(this, vectorResId)!!
+        drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+
+        val bitmap = Bitmap.createBitmap(
+            drawable.intrinsicWidth,
+            drawable.intrinsicHeight,
+            Bitmap.Config.ARGB_8888
+        )
+        val canvas = Canvas(bitmap)
+        drawable.draw(canvas)
+
+        return BitmapDescriptorFactory.fromBitmap(bitmap)
     }
 
     private fun actualizarDistanciaLabel() {
@@ -382,10 +417,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 if (snapshot.isEmpty) return@addOnSuccessListener
                 val total = snapshot.documents.sumOf { (it.getLong("valor") ?: 0L).toDouble() }
                 val promedio = total / snapshot.size().toDouble()
-
-                db.collection("Rutas")
-                    .document(rutaId)
-                    .update("rating", promedio)
+                db.collection("Rutas").document(rutaId).update("rating", promedio)
             }
     }
 
@@ -395,10 +427,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         dialog.setCancelable(true)
 
         val imageView = dialog.findViewById<ImageView>(R.id.dialogImage)
-
-        Glide.with(this)
-            .load(url)
-            .into(imageView)
+        Glide.with(this).load(url).into(imageView)
 
         dialog.show()
     }
