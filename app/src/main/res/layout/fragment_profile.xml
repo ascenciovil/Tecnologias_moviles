@@ -67,7 +67,9 @@
         android:layout_height="match_parent"
         android:fillViewport="true"
         android:background="#F8F9FA"
-        android:layout_marginTop="0dp">
+        android:layout_marginTop="0dp"
+        android:paddingBottom="72dp"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:id="@+id/contentLayout"
