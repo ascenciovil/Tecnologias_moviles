@@ -5,15 +5,18 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
-import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.example.myapplication.databinding.ActivityMainBinding
+import com.example.myapplication.offline.PendingUploadDatabase
+import com.example.myapplication.offline.UploadScheduler
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomnavigation.BottomNavigationView
-
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -29,11 +32,8 @@ class MainActivity : AppCompatActivity() {
 
         val navView: BottomNavigationView = binding.navView
 
-        // Obtener NavController usando findNavController (manteniendo el código de Joaquín)
-
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
-        // Configuración de AppBar (manteniendo configuración de Joaquín)
         val appBarConfiguration = AppBarConfiguration(
             setOf(
                 R.id.navigation_home,
@@ -46,15 +46,12 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
 
-        // Configurar OnBackPressedCallback moderno (tuyo)
         setupOnBackPressedCallback(navController)
 
-        // Configurar listener personalizado para el bottom navigation (combinado)
         navView.setOnItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.navigation_home -> {
                     if (isTemporaryProfile) {
-                        // Si estamos en perfil temporal, volver a rutas
                         handleTemporaryProfileExit(navController)
                         navController.navigate(R.id.navigation_rutas)
                         navView.selectedItemId = R.id.navigation_rutas
@@ -63,14 +60,15 @@ class MainActivity : AppCompatActivity() {
                     }
                     true
                 }
+
                 R.id.navigation_profile -> {
                     if (isTemporaryProfile) {
-                        // Si estamos en perfil temporal, limpiar primero
                         handleTemporaryProfileExit(navController)
                     }
                     navController.navigate(R.id.navigation_profile)
                     true
                 }
+
                 R.id.navigation_rutas -> {
                     if (isTemporaryProfile) {
                         handleTemporaryProfileExit(navController)
@@ -78,6 +76,7 @@ class MainActivity : AppCompatActivity() {
                     navController.navigate(R.id.navigation_rutas)
                     true
                 }
+
                 R.id.navigation_notifications -> {
                     if (isTemporaryProfile) {
                         handleTemporaryProfileExit(navController)
@@ -85,33 +84,41 @@ class MainActivity : AppCompatActivity() {
                     navController.navigate(R.id.navigation_notifications)
                     true
                 }
+
                 else -> false
             }
         }
 
-        // Manejar navegación a home con coordenadas (código de Joaquín)
         handleHomeNavigationWithCoords(navController)
-
-        // Resetear flag
         isTemporaryProfile = false
-
-        // Manejar deep link inicial para perfiles (tuyo)
         handleDeepLink(navController)
+
+        // al abrir la app, re-encola cualquier subida pendiente/failed
+        kickPendingUploads()
+    }
+
+    //re-encolar pendientes guardados en Room
+    private fun kickPendingUploads() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val db = PendingUploadDatabase.getInstance(this@MainActivity)
+                val pendientes = db.dao().getAllPendingOrFailed()
+                pendientes.forEach { UploadScheduler.enqueue(this@MainActivity, it.id) }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error re-encolando pendientes: ${e.message}", e)
+            }
+        }
     }
 
     private fun setupOnBackPressedCallback(navController: androidx.navigation.NavController) {
-        // Configurar OnBackPressedCallback moderno
         onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (isTemporaryProfile) {
-                    // Si estamos en perfil temporal, volver a rutas
                     handleTemporaryProfileExit(navController)
                     navController.navigate(R.id.navigation_rutas)
                     binding.navView.selectedItemId = R.id.navigation_rutas
                 } else {
-                    // Navegación normal
                     if (!navController.popBackStack()) {
-                        // Si no hay nada en el stack, cerrar la app
                         finish()
                     }
                 }
@@ -124,9 +131,13 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         isTemporaryProfile = false
+
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
         handleDeepLink(navController)
         handleHomeNavigationWithCoords(navController)
+
+        // ✅ OFFLINE PRO: por si llega un intent nuevo, también re-encolamos pendientes
+        kickPendingUploads()
     }
 
     private fun handleDeepLink(navController: androidx.navigation.NavController) {
@@ -142,19 +153,14 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "🚀 Procesando navegación al perfil de: $userId")
 
             try {
-                // Usar post para asegurar que la UI está lista
                 binding.root.post {
-                    // Verificar si existe el destino navigation_dashboard
                     val destinationId = try {
-                        // Intentar obtener el ID del destino dashboard
                         R.id.navigation_dashboard
                     } catch (e: Exception) {
-                        // Si no existe, usar profile como fallback
                         Log.w("MainActivity", "navigation_dashboard no encontrado, usando profile")
                         R.id.navigation_profile
                     }
 
-                    // Crear bundle con todos los datos
                     val bundle = Bundle().apply {
                         putString("user_id", userId)
                         putString("user_name", intent.getStringExtra("user_name") ?: "")
@@ -164,37 +170,29 @@ class MainActivity : AppCompatActivity() {
 
                     Log.d("MainActivity", "📦 Bundle creado: $bundle")
 
-                    // Limpiar el stack de navegación
                     navController.popBackStack(R.id.navigation_rutas, false)
-
-                    // Navegar al destino (dashboard o profile)
                     navController.navigate(destinationId, bundle)
 
-                    // Marcar como perfil temporal solo si vamos a dashboard
                     isTemporaryProfile = (destinationId == R.id.navigation_dashboard)
 
-                    // Habilitar el botón de retroceso en la action bar si es temporal
                     if (isTemporaryProfile) {
                         supportActionBar?.setDisplayHomeAsUpEnabled(true)
                         onBackPressedCallback.isEnabled = true
                     }
 
-                    Log.d("MainActivity", "✅ Navegación completada exitosamente")
+                    Log.d("MainActivity", "Navegación completada exitosamente")
 
-                    // Limpiar extras para evitar procesamiento duplicado
                     clearIntentExtras()
                 }
 
             } catch (e: Exception) {
-                Log.e("MainActivity", "❌ Error en navegación: ${e.message}", e)
-                // Fallback: navegar a rutas
+                Log.e("MainActivity", "Error en navegación: ${e.message}", e)
                 navController.navigate(R.id.navigation_rutas)
                 binding.navView.selectedItemId = R.id.navigation_rutas
             }
         }
     }
 
-    // Función de la rama Joaquín para navegar a home con coordenadas
     private fun handleHomeNavigationWithCoords(navController: androidx.navigation.NavController) {
         val goToHome = intent.getBooleanExtra("go_to_home", false)
 
@@ -202,7 +200,6 @@ class MainActivity : AppCompatActivity() {
             val coords = intent.getParcelableArrayListExtra<LatLng>("ruta_coords")
             val rutaId = intent.getStringExtra("ruta_id")
 
-            // Limpiar stack y navegar a home con las coordenadas
             navController.popBackStack(R.id.navigation_home, true)
 
             navController.navigate(R.id.navigation_home, Bundle().apply {
@@ -210,8 +207,6 @@ class MainActivity : AppCompatActivity() {
                 putParcelableArrayList("ruta_coords", coords)
             })
 
-
-            // IMPORTANTE: limpiar extras evitando que se reejecute al volver
             intent.removeExtra("go_to_home")
             intent.removeExtra("ruta_id")
             intent.removeExtra("ruta_coords")
@@ -220,22 +215,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleTemporaryProfileExit(navController: androidx.navigation.NavController) {
         if (isTemporaryProfile) {
-            // Limpiar stack de navegación
             navController.popBackStack(R.id.navigation_rutas, false)
-
-            // Restaurar estado normal
             isTemporaryProfile = false
             supportActionBar?.setDisplayHomeAsUpEnabled(false)
-
             Log.d("MainActivity", "🔙 Saliendo de perfil temporal")
         }
     }
 
-    // Manejar el botón de retroceso de la action bar
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
         if (isTemporaryProfile) {
-            // Si estamos en perfil temporal, volver a rutas
             handleTemporaryProfileExit(navController)
             navController.navigate(R.id.navigation_rutas)
             binding.navView.selectedItemId = R.id.navigation_rutas
@@ -245,14 +234,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearIntentExtras() {
-        // Crear un nuevo intent sin extras
         val newIntent = Intent(this, MainActivity::class.java)
         setIntent(newIntent)
     }
 
     override fun onResume() {
         super.onResume()
-        // Verificar si hay que procesar un deep link al volver a la actividad
         if (!isTemporaryProfile) {
             val navController = findNavController(R.id.nav_host_fragment_activity_main)
             handleDeepLink(navController)
@@ -262,10 +249,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Remover el callback para evitar memory leaks
         if (::onBackPressedCallback.isInitialized) {
             onBackPressedCallback.remove()
         }
     }
 }
-

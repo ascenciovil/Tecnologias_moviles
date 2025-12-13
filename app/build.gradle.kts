@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.gms.google.services)
-    // Eliminamos el plugin kotlin-kapt que no necesitamos
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -96,4 +96,20 @@ dependencies {
 
     // CircleImageView para foto de perfil redonda
     implementation("de.hdodenhof:circleimageview:3.1.0")
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Room
+    implementation("androidx.room:room-runtime:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // Firebase await()
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    //Asegura Gson disponible:
+    implementation("com.google.code.gson:gson:2.11.0")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 }

@@ -87,6 +87,9 @@ class ProfileViewModel : ViewModel() {
     private val _mensaje = MutableLiveData<String?>()
     val mensaje: LiveData<String?> = _mensaje
 
+    private var rutasListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+
     private companion object {
         const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
         const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
@@ -218,20 +221,41 @@ class ProfileViewModel : ViewModel() {
     }
 
     private fun cargarRutasUsuario(userId: String) {
-        db.collection("Rutas")
+
+        // Si ya había listener, lo removemos para no duplicar
+        rutasListener?.remove()
+
+        rutasListener = db.collection("Rutas")
             .whereEqualTo("userId", userId)
-            .whereEqualTo("visible", true)
-            .get()
-            .addOnSuccessListener { querySnapshot ->
+            .addSnapshotListener { snapshot, exception ->
+
+                if (exception != null) {
+                    _rutasPublicadas.value = emptyList()
+                    return@addSnapshotListener
+                }
+
                 val rutas = mutableListOf<Ruta>()
 
-                for (document in querySnapshot.documents) {
+                val docs = snapshot?.documents ?: emptyList()
+
+                // Filtrar visible: si no existe -> se considera visible
+                val visibles = docs.filter { doc ->
+                    doc.getBoolean("visible") != false
+                }
+
+                // Ordenar por createdAt si existe (recomendado)
+                val ordenadas = visibles.sortedByDescending { doc ->
+                    doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L
+                }
+
+                for (document in ordenadas) {
                     val id = document.id
                     val titulo = document.getString("nombre")
                         ?: document.getString("titulo")
                         ?: "Ruta sin título"
 
                     val descripcion = document.getString("descripcion") ?: ""
+
                     val duracion = document.get("duracion")?.toString()
                         ?: document.get("tiempo_estimado")?.toString()
                         ?: "Tiempo no especificado"
@@ -241,10 +265,8 @@ class ProfileViewModel : ViewModel() {
 
                 _rutasPublicadas.value = rutas
             }
-            .addOnFailureListener { exception ->
-                _rutasPublicadas.value = emptyList()
-            }
     }
+
 
     fun ocultarRuta(rutaId: String) {
         val currentUser = auth.currentUser
@@ -508,6 +530,12 @@ class ProfileViewModel : ViewModel() {
                 _isLoading.value = false
             }
     }
+    override fun onCleared() {
+        super.onCleared()
+        rutasListener?.remove()
+    }
+
+
 }
 
 data class Ruta(
@@ -525,3 +553,4 @@ data class Logro(
     val obtenido: Boolean,
     val fechaObtencion: Long
 )
+

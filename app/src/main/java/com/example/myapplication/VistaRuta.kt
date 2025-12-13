@@ -18,15 +18,12 @@ import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.GeoPoint
 import java.util.Locale
 import android.content.Intent
 import com.bumptech.glide.Glide
 import com.google.android.gms.maps.model.MarkerOptions
 import android.widget.ImageView
-
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
@@ -61,21 +58,14 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         if (fromSeguimiento) {
             val ratingBar = findViewById<RatingBar>(R.id.ratingBar)
-            val contentRoot = findViewById<View>(R.id.route_detail_root)
-
 
             ratingBar.setOnRatingBarChangeListener { _, rating, _ ->
-                // Aquí recibes el valor seleccionado por el usuario
-                println("El usuario seleccionó: $rating estrellas")
-
-                // Si quieres mostrar un toast:
                 Toast.makeText(this, "Has seleccionado $rating estrellas", Toast.LENGTH_SHORT).show()
                 enviarValoracion(rating.toInt())
             }
 
             mostrarPopup(popup, contentRoot)
         }
-
 
         // 🧭 Referencias a vistas
         toolbar = findViewById(R.id.topAppBar)
@@ -105,19 +95,17 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         cargarDatosRuta(rutaId!!)
 
         // 🔙 Botón back del toolbar
-        toolbar.setNavigationOnClickListener { finish() }
+        toolbar.setNavigationOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
         btnSeguir.setOnClickListener {
             val intent = Intent(this, MainActivity::class.java)
             intent.putExtra("go_to_home", true)
             intent.putExtra("ruta_id", rutaId)
-            intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta)) // ← lista de LatLng
-            startActivity(intent)
-            finish()
-        }
-
-        toolbar.setNavigationOnClickListener {
-            val intent = Intent(this, MainActivity::class.java)
+            intent.putParcelableArrayListExtra("ruta_coords", ArrayList(coordenadasRuta))
             startActivity(intent)
             finish()
         }
@@ -172,50 +160,41 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 // coordenadas...
                 coordenadasRuta = (doc.get("coordenadas") as? List<*>)
                     ?.mapNotNull { value ->
-
                         when (value) {
-
-                            // Caso GeoPoint real (no es tu caso, pero sirve)
                             is com.google.firebase.firestore.GeoPoint -> {
                                 LatLng(value.latitude, value.longitude)
                             }
-
-                            // Caso Map con latitude/longitude
                             is Map<*, *> -> {
                                 val lat = (value["latitude"] as? Number)?.toDouble()
                                 val lng = (value["longitude"] as? Number)?.toDouble()
-
-                                if (lat != null && lng != null) {
-                                    LatLng(lat, lng)
-                                } else {
-                                    Log.e("RUTA_DEBUG", "Punto inválido: $value")
-                                    null
-                                }
+                                if (lat != null && lng != null) LatLng(lat, lng) else null
                             }
-
-                            else -> {
-                                Log.e("RUTA_DEBUG", "Formato desconocido: $value")
-                                null
-                            }
+                            else -> null
                         }
-                    }
-                    ?.also {
-                        Log.d("RUTA_DEBUG", "Coordenadas mapeadas (size=${it.size}): $it")
                     }
                     ?: emptyList()
 
-
-
+                // ✅ IMAGENES (CORREGIDO):
+                // - lee url/lat/lng/origen
+                // - filtra url null o vacía
                 val imagenesField = doc.get("imagenes")
                 imagenesRuta = when (imagenesField) {
                     is List<*> -> imagenesField.mapNotNull { item ->
-                        if (item is Map<*, *>) {
-                            FotoConCoordenada(
-                                uri = item["url"] as? String ?: "",
-                                lat = (item["lat"] as? Number)?.toDouble(),
-                                lng = (item["lng"] as? Number)?.toDouble()
-                            )
-                        } else null
+                        val m = item as? Map<*, *> ?: return@mapNotNull null
+
+                        val url = m["url"] as? String
+                        if (url.isNullOrBlank()) return@mapNotNull null  // ✅ evita null/"" rotos
+
+                        val lat = (m["lat"] as? Number)?.toDouble()
+                        val lng = (m["lng"] as? Number)?.toDouble()
+                        val origen = m["origen"] as? String
+
+                        FotoConCoordenada(
+                            uri = url,
+                            lat = lat,
+                            lng = lng,
+                            origen = origen
+                        )
                     }
                     else -> emptyList()
                 }
@@ -224,14 +203,13 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                 tvDescription.text = descripcion
                 tvRatingRuta.text = "⭐ ${String.format(Locale.getDefault(), "%.1f", rating)}"
 
-                if (userId!!.isNotEmpty()) {
+                if (!userId.isNullOrEmpty()) {
                     db.collection("Usuarios").document(userId!!)
                         .get()
                         .addOnSuccessListener { userDoc ->
                             val autor = userDoc.getString("nombre_usuario") ?: "Autor desconocido"
                             tvAutorRuta.text = "Autor: $autor"
 
-                            // Hacer el TextView clickeable
                             tvAutorRuta.setOnClickListener {
                                 navigateToUserProfile(userId!!, autor)
                             }
@@ -243,18 +221,11 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
                     tvAutorRuta.text = "Autor: desconocido"
                 }
 
-                // Actualizar etiqueta de distancia
                 actualizarDistanciaLabel()
-
-                // Intentar dibujar la ruta si ya tenemos el mapa listo
                 dibujarRutaSiLista()
             }
             .addOnFailureListener { e ->
-                Toast.makeText(
-                    this,
-                    "Error al cargar la ruta: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Error al cargar la ruta: ${e.message}", Toast.LENGTH_SHORT).show()
                 finish()
             }
     }
@@ -265,40 +236,32 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private fun navigateToUserProfile(userId: String, userName: String) {
         Log.d("VistaRuta", "Navigating to user profile: $userName ($userId)")
 
-        // Crear un intent directo con CLEAR_TASK para reiniciar MainActivity completamente
         val intent = Intent(this, MainActivity::class.java).apply {
-            // Esto limpia completamente el stack y crea una nueva tarea
             flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
-
-            // Pasar los datos del usuario
             putExtra("user_id", userId)
             putExtra("user_name", userName)
             putExtra("destination", "dashboard_fragment")
-            putExtra("force_reload", true) // Bandera para forzar recarga
+            putExtra("force_reload", true)
         }
 
-        // Iniciar la actividad
         startActivity(intent)
-
-        // Animación de transición suave
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-
     }
 
     // ==========================
     //     MAPA
     // ==========================
-
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
         mapReady = true
         dibujarRutaSiLista()
+
         googleMap.setOnMarkerClickListener { marker ->
             val url = marker.tag as? String
             if (url != null) {
                 mostrarImagenEnDialog(url)
             }
-            true // ← Importante para evitar que la cámara se mueva automáticamente
+            true
         }
     }
 
@@ -311,7 +274,6 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         polylineOptions.addAll(latLngList)
         googleMap.addPolyline(polylineOptions)
 
-        // Centrar la cámara
         try {
             val boundsBuilder = LatLngBounds.Builder()
             latLngList.forEach { boundsBuilder.include(it) }
@@ -320,16 +282,17 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             val cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding)
             googleMap.moveCamera(cameraUpdate)
         } catch (e: IllegalStateException) {
-            // Esto pasa cuando todos los puntos son exactamente iguales
             if (latLngList.isNotEmpty()) {
-                googleMap.moveCamera(
-                    CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f)
-                )
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f))
             }
         }
 
+        // ✅ MARCADORES SOLO PARA FOTOS "ruta"
+        // Fallback: si origen == null (rutas antiguas), usamos lat/lng != null
         imagenesRuta
+            .filter { it.uri.isNotBlank() }
             .filter { it.lat != null && it.lng != null }
+            .filter { (it.origen == "ruta") || (it.origen == null) }
             .forEach { foto ->
                 val pos = LatLng(foto.lat!!, foto.lng!!)
                 val marker = googleMap.addMarker(
@@ -348,13 +311,12 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         }
 
         var totalMeters = 0f
-
         for (i in 0 until coordenadasRuta.size - 1) {
             val p1 = coordenadasRuta[i]
             val p2 = coordenadasRuta[i + 1]
 
             val results = FloatArray(1)
-            android.location.Location.distanceBetween(
+            Location.distanceBetween(
                 p1.latitude, p1.longitude,
                 p2.latitude, p2.longitude,
                 results
@@ -363,20 +325,16 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         }
 
         val km = totalMeters / 1000f
-        val kmRounded = String.format(java.util.Locale.getDefault(), "%.1f", km)
-
+        val kmRounded = String.format(Locale.getDefault(), "%.1f", km)
         tvDistanceLabel.text = "Distancia de la ruta: $kmRounded km"
     }
 
-
-
     private fun mostrarPopup(popup: View, root: View) {
-        root.alpha = 0.3f     // oscurecer fondo
+        root.alpha = 0.3f
         popup.visibility = View.VISIBLE
         root.isEnabled = false
 
-
-        popup.bringToFront()  // lo pone sobre todo
+        popup.bringToFront()
         popup.isClickable = true
         popup.isFocusable = true
 
@@ -385,11 +343,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             root.isEnabled = true
             root.alpha = 1f
         }
-
     }
 
     private fun enviarValoracion(valor: Int) {
-
         val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
         val rutaId = this.rutaId
 
@@ -418,15 +374,12 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun actualizarPromedio(rutaId: String) {
-
         db.collection("Rutas")
             .document(rutaId)
             .collection("Valoraciones")
             .get()
             .addOnSuccessListener { snapshot ->
-
                 if (snapshot.isEmpty) return@addOnSuccessListener
-
                 val total = snapshot.documents.sumOf { (it.getLong("valor") ?: 0L).toDouble() }
                 val promedio = total / snapshot.size().toDouble()
 
@@ -438,7 +391,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
     private fun mostrarImagenEnDialog(url: String) {
         val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.dialog_imagen) // lo creamos abajo
+        dialog.setContentView(R.layout.dialog_imagen)
         dialog.setCancelable(true)
 
         val imageView = dialog.findViewById<ImageView>(R.id.dialogImage)
@@ -449,7 +402,4 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
 
         dialog.show()
     }
-
-
 }
-

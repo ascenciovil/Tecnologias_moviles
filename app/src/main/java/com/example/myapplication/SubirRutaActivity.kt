@@ -4,8 +4,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.example.myapplication.offline.PendingCoord
+import com.example.myapplication.offline.PendingPhoto
+import com.example.myapplication.offline.PendingRouteEntity
+import com.example.myapplication.offline.PendingUploadDatabase
+import com.example.myapplication.offline.UploadScheduler
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -13,21 +20,11 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
-import java.io.FileOutputStream
-import com.example.myapplication.FotoConCoordenada
-
-
-private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
-private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
 
 class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -39,26 +36,25 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private var coordenadas: ArrayList<LatLng> = arrayListOf()
 
-    // ----------------------
-    // AHORA ESTA LISTA ES LA PRINCIPAL
-    // Guarda fotos cámara (con coord) y galería (null coord)
-    // ----------------------
+    // Lista principal: fotos cámara (con coord) y galería (null coord)
     private val fotosConCoord = mutableListOf<FotoConCoordenada>()
 
     private val pickImageLauncher =
-        registerForActivityResult(
-            androidx.activity.result.contract.ActivityResultContracts.GetContent()
-        ) { uri: Uri? ->
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let {
-                // Foto desde GALERÍA → lat/lng = null
-                fotosConCoord.add(
-                    FotoConCoordenada(
-                        uri = it.toString(),
-                        lat = null,
-                        lng = null
+                // ✅ Offline pro: copiamos a almacenamiento propio (path real)
+                lifecycleScope.launch {
+                    val localPath = withContext(Dispatchers.IO) { copyToPendingPhotos(it) }
+                    fotosConCoord.add(
+                        FotoConCoordenada(
+                            uri = localPath,
+                            lat = null,
+                            lng = null,
+                            origen = "despues"
+                        )
                     )
-                )
-                updateGrid()
+                    updateGrid()
+                }
             }
         }
 
@@ -72,12 +68,12 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         subirBtn = findViewById(R.id.subirRuta)
         cancelarBtn = findViewById(R.id.cancelar)
 
-        // Datos recibidos desde la activity anterior
-        coordenadas = intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf()
+        // ✅ Coordenadas: soporta Parcelable (ideal) y fallback Serializable (por cómo lo mandas hoy)
+        coordenadas = intent.getParcelableArrayListExtra("coordenadas")
+            ?: (intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf())
 
-        // Fotos que ya tenían coordenadas
+        // Fotos previas (desde HomeFragment)
         val fotosPrevias = intent.getSerializableExtra("fotos") as? ArrayList<FotoConCoordenada> ?: arrayListOf()
-
         fotosConCoord.addAll(fotosPrevias)
 
         updateGrid()
@@ -91,12 +87,10 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 Toast.makeText(this, "Completa todos los campos", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            subirRuta()
+            guardarPendienteYEncolar()
         }
 
-        cancelarBtn.setOnClickListener {
-            volverAMain()
-        }
+        cancelarBtn.setOnClickListener { volverAMain() }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -113,19 +107,27 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
     // ------------------------------------
     // GRILLA: muestra TODAS las fotos
+    // (soporta http, content:// y path local)
     // ------------------------------------
     private fun updateGrid() {
         gridLayout.removeAllViews()
 
         for (foto in fotosConCoord) {
             val imageView = ImageView(this).apply {
-                setImageURI(Uri.parse(foto.uri))
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = 200
                     height = 200
                 }
                 scaleType = ImageView.ScaleType.CENTER_CROP
             }
+
+            val model: Any = when {
+                foto.uri.startsWith("http") -> foto.uri
+                foto.uri.startsWith("content://") || foto.uri.startsWith("file://") -> Uri.parse(foto.uri)
+                else -> File(foto.uri) // ✅ path local
+            }
+
+            Glide.with(this).load(model).into(imageView)
             gridLayout.addView(imageView)
         }
 
@@ -144,100 +146,82 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         pickImageLauncher.launch("image/*")
     }
 
-
     // ------------------------------------
-    // SUBIR UNA FOTO A CLOUDINARY
+    // OFFLINE PRO: Copiar galería a path persistente
+    // externalFilesDir/pending_photos
     // ------------------------------------
-    private suspend fun uploadImageToCloudinary(uri: Uri): String? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
+    private fun copyToPendingPhotos(src: Uri): String {
+        val dir = getExternalFilesDir("pending_photos")!!
+        dir.mkdirs()
 
-                val tempFile = File.createTempFile("upload_", ".jpg", cacheDir)
-                FileOutputStream(tempFile).use { out ->
-                    inputStream.use { it.copyTo(out) }
-                }
-
-                val requestFile = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
-                val body = MultipartBody.Part.createFormData(
-                    "file",
-                    tempFile.name,
-                    requestFile
-                )
-
-                val presetBody =
-                    CLOUDINARY_UPLOAD_PRESET.toRequestBody("text/plain".toMediaTypeOrNull())
-
-                val response = CloudinaryService.api.uploadImage(
-                    CLOUDINARY_CLOUD_NAME,
-                    body,
-                    presetBody
-                )
-
-                response.secure_url
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
+        val dst = File(dir, "gal_${System.currentTimeMillis()}.jpg")
+        contentResolver.openInputStream(src)!!.use { input ->
+            dst.outputStream().use { out -> input.copyTo(out) }
         }
+        return dst.absolutePath
     }
 
-
     // ------------------------------------
-    // SUBIR LA RUTA COMPLETA A FIRESTORE
+    // OFFLINE PRO: Guardar en Room + Encolar Worker
     // ------------------------------------
-    private fun subirRuta() {
+    private fun guardarPendienteYEncolar() {
         val nombre = nombreRuta.text.toString().trim()
         val descripcion = descripcionRuta.text.toString().trim()
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "anonimo"
 
-        val firestore = FirebaseFirestore.getInstance()
-
-        val coordList = coordenadas.map {
-            mapOf("latitude" to it.latitude, "longitude" to it.longitude)
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: run {
+            Toast.makeText(this, "Debes iniciar sesión", Toast.LENGTH_SHORT).show()
+            return
         }
 
+        val coords = coordenadas.map { PendingCoord(it.latitude, it.longitude) }
+
+        // Aseguramos que cada foto sea un path local (si quedara alguna content:// por versiones viejas)
         lifecycleScope.launch {
+            val photos = withContext(Dispatchers.IO) {
+                fotosConCoord.map { f ->
+                    val pathLocal = when {
+                        f.uri.startsWith("content://") -> copyToPendingPhotos(Uri.parse(f.uri))
+                        f.uri.startsWith("file://") -> File(Uri.parse(f.uri).path ?: "").absolutePath
+                        else -> f.uri
+                    }
 
-            // -------------------------
-            // SUBIR TODAS LAS FOTOS (con coordenadas o null)
-            // -------------------------
-            val fotosFinales = mutableListOf<Map<String, Any?>>()
-
-            for (foto in fotosConCoord) {
-
-                val url = uploadImageToCloudinary(Uri.parse(foto.uri))
-
-                fotosFinales.add(
-                    mapOf(
-                        "url" to url,
-                        "lat" to foto.lat,
-                        "lng" to foto.lng
+                    val origin = if (f.lat != null && f.lng != null) "ruta" else "despues"
+                    PendingPhoto(
+                        path = pathLocal,
+                        lat = f.lat,
+                        lng = f.lng,
+                        origin = origin
                     )
-                )
+                }
             }
 
-            val rutaData = hashMapOf(
-                "nombre" to nombre,
-                "descripcion" to descripcion,
-                "userId" to userId,
-                "imagenes" to fotosFinales,
-                "rating" to 0,
-                "coordenadas" to coordList
+            val gson = Gson()
+            val entity = PendingRouteEntity(
+                userId = userId,
+                nombre = nombre,
+                descripcion = descripcion,
+                coordenadasJson = gson.toJson(coords),
+                fotosJson = gson.toJson(photos),
+                status = "PENDING"
             )
 
-            firestore.collection("Rutas")
-                .add(rutaData)
-                .addOnSuccessListener {
-                    Toast.makeText(this@SubirRutaActivity, "Ruta subida correctamente", Toast.LENGTH_SHORT).show()
-                    volverAMain()
-                }
-                .addOnFailureListener {
-                    Toast.makeText(this@SubirRutaActivity, "Error al subir la ruta", Toast.LENGTH_SHORT).show()
-                }
+            withContext(Dispatchers.IO) {
+                val db = PendingUploadDatabase.getInstance(this@SubirRutaActivity)
+                val id = db.dao().insert(entity)
+
+                // Encola el worker: se ejecuta cuando haya internet
+                UploadScheduler.enqueue(this@SubirRutaActivity, id)
+            }
+
+            Toast.makeText(
+                this@SubirRutaActivity,
+                "Ruta guardada. Se subirá automáticamente cuando haya Internet ✅",
+                Toast.LENGTH_LONG
+            ).show()
+
+            volverAMain()
         }
     }
-
 
     private fun volverAMain() {
         val intent = Intent(this, MainActivity::class.java)

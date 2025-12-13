@@ -14,6 +14,7 @@ import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.google.android.material.card.MaterialCardView
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 class RutasFragment : Fragment() {
 
@@ -22,7 +23,6 @@ class RutasFragment : Fragment() {
     private val rutasList = mutableListOf<Ruta>()
     private lateinit var adapter: RutasAdapter
 
-    // Modelo para mostrar la tarjeta - CORREGIDO
     data class Ruta(
         val nombre: String = "",
         val autor: String = "",
@@ -49,18 +49,27 @@ class RutasFragment : Fragment() {
         recyclerView.adapter = adapter
 
         cargarRutas()
-
         return view
     }
 
     private fun cargarRutas() {
         db.collection("Rutas")
-            .whereEqualTo("visible", true)
+            .orderBy("rating", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { result ->
 
+                android.util.Log.d("RUTAS_UI", "docs=${result.size()}")
+
                 rutasList.clear()
-                val total = result.size()
+                val docs = result.documents
+
+                // filtramos visible en memoria:
+                val visibles = docs.filter { doc ->
+                    val v = doc.getBoolean("visible")
+                    v != false // ✅ si es null (no existe) lo consideramos visible
+                }
+
+                val total = visibles.size
                 var completados = 0
 
                 if (total == 0) {
@@ -68,7 +77,7 @@ class RutasFragment : Fragment() {
                     return@addOnSuccessListener
                 }
 
-                for (doc in result) {
+                for (doc in visibles) {
                     val nombre = doc.getString("nombre") ?: "Sin nombre"
                     val ratingNumber = doc.get("rating") as? Number
                     val rating = ratingNumber?.toDouble() ?: 0.0
@@ -88,21 +97,19 @@ class RutasFragment : Fragment() {
                                         idRuta = idRuta
                                     )
                                 )
-
                                 completados++
-
                                 if (completados == total) {
+                                    // ya viene ordenado por rating, pero lo mantenemos por seguridad
                                     rutasList.sortByDescending { it.rating }
                                     adapter.notifyDataSetChanged()
                                 }
                             }
                             .addOnFailureListener {
-                                // CORREGIDO: Ahora pasamos todos los parámetros requeridos
                                 rutasList.add(
                                     Ruta(
                                         nombre = nombre,
                                         autor = "Desconocido",
-                                        autorId = "",
+                                        autorId = idUsuario,
                                         rating = rating,
                                         idRuta = idRuta
                                     )
@@ -114,7 +121,6 @@ class RutasFragment : Fragment() {
                                 }
                             }
                     } else {
-                        // CORREGIDO: Ahora pasamos todos los parámetros requeridos
                         rutasList.add(
                             Ruta(
                                 nombre = nombre,
@@ -133,13 +139,11 @@ class RutasFragment : Fragment() {
                 }
             }
             .addOnFailureListener { e ->
-                Toast.makeText(
-                    requireContext(),
-                    "Error al cargar rutas: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                android.util.Log.e("RUTAS_UI", "Error al cargar rutas", e)
+                Toast.makeText(requireContext(), "Error al cargar rutas: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+
 
     class RutasAdapter(
         private val rutas: List<Ruta>,

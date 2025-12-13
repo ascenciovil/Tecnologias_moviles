@@ -31,12 +31,30 @@ class GaleriaRutaActivity : AppCompatActivity() {
         imagenes = intent.getSerializableExtra("imagenes_ruta") as? ArrayList<FotoConCoordenada>
             ?: emptyList()
 
+        // Filtrar urls vacías/null (por rutas antiguas o fallos previos)
+        imagenes = imagenes.filter { it.uri.isNotBlank() }
+
         if (imagenes.isEmpty()) {
             Toast.makeText(this, "Esta ruta no tiene fotos", Toast.LENGTH_SHORT).show()
         }
 
-        val fotosEnRuta = imagenes.filter { it.lat != null && it.lng != null }
-        val fotosDespues = imagenes.filter { it.lat == null || it.lng == null }
+        // - Si origen existe: se usa
+        // - Si origen es null (rutas viejas): fallback por lat/lng
+        val fotosEnRuta = imagenes.filter {
+            when (it.origen) {
+                "ruta" -> true
+                "despues" -> false
+                else -> it.lat != null && it.lng != null // fallback
+            }
+        }
+
+        val fotosDespues = imagenes.filter {
+            when (it.origen) {
+                "ruta" -> false
+                "despues" -> true
+                else -> it.lat == null || it.lng == null // fallback
+            }
+        }
 
         val ordenGlobal = (fotosEnRuta + fotosDespues)
         val urlsGlobales = ArrayList(ordenGlobal.map { it.uri })
