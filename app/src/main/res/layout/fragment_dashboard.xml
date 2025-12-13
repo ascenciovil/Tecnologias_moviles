@@ -77,31 +77,60 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Header del perfil -->
+            <!-- Header del perfil con foto -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:layout_marginBottom="16dp">
 
-                <TextView
-                    android:id="@+id/text_nombre"
+                <!-- Foto de perfil y nombre en horizontal -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Cargando..."
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:textColor="#000000" />
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
 
-                <TextView
-                    android:id="@+id/text_username"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@cargando"
-                    android:textSize="16sp"
-                    android:textColor="#666666"
-                    android:layout_marginBottom="8dp" />
+                    <!-- Foto de perfil -->
+                    <de.hdodenhof.circleimageview.CircleImageView
+                        android:id="@+id/imageFotoPerfil"
+                        android:layout_width="60dp"
+                        android:layout_height="60dp"
+                        android:src="@drawable/ic_profile_placeholder"
+                        android:scaleType="centerCrop"
+                        android:layout_marginEnd="16dp"
+                        app:civ_border_width="2dp"
+                        app:civ_border_color="#4285F4" />
 
+                    <!-- Nombre y username -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/text_nombre"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Cargando..."
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:textColor="#000000" />
+
+                        <TextView
+                            android:id="@+id/text_username"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@cargando"
+                            android:textSize="14sp"
+                            android:textColor="#666666" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Email -->
                 <TextView
                     android:id="@+id/text_email"
                     android:layout_width="match_parent"

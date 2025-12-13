@@ -33,6 +33,12 @@ class DashboardViewModel : ViewModel() {
     }
     val email: LiveData<String> = _email
 
+    // NUEVO: Foto de perfil
+    private val _fotoPerfilUrl = MutableLiveData<String>().apply {
+        value = "default"
+    }
+    val fotoPerfilUrl: LiveData<String> = _fotoPerfilUrl
+
     private val _estaSiguiendo = MutableLiveData<Boolean>().apply {
         value = false
     }
@@ -58,7 +64,7 @@ class DashboardViewModel : ViewModel() {
     }
     val logros: LiveData<List<Logro>> = _logros
 
-    // NUEVOS: Contadores de seguidores y siguiendo
+    // Contadores de seguidores y siguiendo
     private val _seguidoresCount = MutableLiveData<Int>().apply {
         value = 0
     }
@@ -119,6 +125,7 @@ class DashboardViewModel : ViewModel() {
                     _username.value = "@usuario_desconocido"
                     _descripcion.value = "Este usuario no tiene información disponible"
                     _email.value = "No disponible"
+                    _fotoPerfilUrl.value = "default"
                     _seguidoresCount.value = 0
                     _siguiendoCount.value = 0
                 }
@@ -130,6 +137,7 @@ class DashboardViewModel : ViewModel() {
                 _username.value = "@error"
                 _descripcion.value = "No se pudieron cargar los datos del usuario"
                 _email.value = "No disponible"
+                _fotoPerfilUrl.value = "default"
                 _seguidoresCount.value = 0
                 _siguiendoCount.value = 0
                 _isOnline.value = false
@@ -144,6 +152,9 @@ class DashboardViewModel : ViewModel() {
         val descripcionUsuario = document.getString("descripcion") ?:
         "Este usuario no ha agregado una descripción todavía."
 
+        // Obtener la foto de perfil
+        val fotoPerfil = document.getString("foto_perfil") ?: "default"
+
         // Cargar contadores (si existen)
         _seguidoresCount.value = (document.get("seguidores_count") as? Long)?.toInt() ?: 0
         _siguiendoCount.value = (document.get("siguiendo_count") as? Long)?.toInt() ?: 0
@@ -152,6 +163,7 @@ class DashboardViewModel : ViewModel() {
         _username.value = "@${nombreUsuario.lowercase(Locale.ROOT).replace(" ", "")}"
         _email.value = correo
         _descripcion.value = descripcionUsuario
+        _fotoPerfilUrl.value = fotoPerfil
     }
 
     // Función para inicializar contadores si no existen
@@ -351,8 +363,7 @@ class DashboardViewModel : ViewModel() {
                             "userId" to targetUserId,
                             "timestamp" to timestamp,
                             "nombre" to nombreUsuarioObjetivo,
-                            "fotoPerfil" to (targetUserDoc.getString("foto_perf") ?: "")
-
+                            "fotoPerfil" to (targetUserDoc.getString("foto_perfil") ?: "")
                         )
 
                         val seguirRef = db.collection("Usuarios").document(currentUserId)
@@ -364,8 +375,7 @@ class DashboardViewModel : ViewModel() {
                             "userId" to currentUserId,
                             "timestamp" to timestamp,
                             "nombre" to nombreUsuarioActual,
-                            "fotoPerfil" to (currentUserDoc.getString("foto_perf") ?: "")
-
+                            "fotoPerfil" to (currentUserDoc.getString("foto_perfil") ?: "")
                         )
 
                         val seguidorRef = db.collection("Usuarios").document(targetUserId)
@@ -450,8 +460,6 @@ class DashboardViewModel : ViewModel() {
             )
     }
 
-
-
     // Función para forzar sincronización
     fun sincronizarDatos() {
         val targetUserId = userId ?: return
@@ -470,6 +478,7 @@ class DashboardViewModel : ViewModel() {
         _descripcion.value = "Este es un perfil de ejemplo. Haz clic en un autor de ruta para ver su perfil real."
         _rutasPublicadas.value = emptyList()
         _logros.value = emptyList()
+        _fotoPerfilUrl.value = "default"
         _seguidoresCount.value = 0
         _siguiendoCount.value = 0
         _isLoading.value = false

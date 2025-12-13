@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.bumptech.glide.Glide
 import com.example.myapplication.R
 import com.example.myapplication.databinding.FragmentDashboardBinding
 import com.google.firebase.auth.FirebaseAuth
@@ -200,7 +201,13 @@ class DashboardFragment : Fragment() {
             binding.textEmail.text = email
         }
 
-        // NUEVO: Observar contador de seguidores
+        // NUEVO: Observar foto de perfil
+        dashboardViewModel.fotoPerfilUrl.observe(viewLifecycleOwner) { url ->
+            Log.d("DashboardFragment", "Actualizando foto de perfil: $url")
+            cargarFotoPerfil(url)
+        }
+
+        // Observar contador de seguidores
         dashboardViewModel.seguidoresCount.observe(viewLifecycleOwner) { count ->
             Log.d("DashboardFragment", "Seguidores count: $count")
             binding.textSeguidoresCount.text = count.toString()
@@ -211,7 +218,7 @@ class DashboardFragment : Fragment() {
             }
         }
 
-        // NUEVO: Observar contador de siguiendo
+        // Observar contador de siguiendo
         dashboardViewModel.siguiendoCount.observe(viewLifecycleOwner) { count ->
             Log.d("DashboardFragment", "Siguiendo count: $count")
             binding.textSiguiendoCount.text = count.toString()
@@ -300,6 +307,25 @@ class DashboardFragment : Fragment() {
                     mostrarListaSiguiendo()
                 }
             }
+        }
+    }
+
+    // Función para cargar la foto de perfil
+    private fun cargarFotoPerfil(url: String?) {
+        try {
+            if (!url.isNullOrEmpty() && url != "default") {
+                Glide.with(this)
+                    .load(url)
+                    .placeholder(R.drawable.ic_profile_placeholder)
+                    .error(R.drawable.ic_profile_placeholder)
+                    .circleCrop()
+                    .into(binding.imageFotoPerfil)
+            } else {
+                binding.imageFotoPerfil.setImageResource(R.drawable.ic_profile_placeholder)
+            }
+        } catch (e: Exception) {
+            Log.e("DashboardFragment", "Error al cargar foto: ${e.message}")
+            binding.imageFotoPerfil.setImageResource(R.drawable.ic_profile_placeholder)
         }
     }
 
