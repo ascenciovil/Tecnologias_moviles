@@ -209,10 +209,7 @@ class DashboardFragment : Fragment() {
             Log.d("DashboardFragment", "Seguidores count: $count")
             binding.textSeguidoresCount.text = count.toString()
 
-            // Hacer clickeable para ver lista de seguidores
-            binding.textSeguidoresCount.setOnClickListener {
-                mostrarListaSeguidores()
-            }
+
         }
 
         // Observar contador de siguiendo
@@ -220,10 +217,7 @@ class DashboardFragment : Fragment() {
             Log.d("DashboardFragment", "Siguiendo count: $count")
             binding.textSiguiendoCount.text = count.toString()
 
-            // Hacer clickeable para ver lista de siguiendo
-            binding.textSiguiendoCount.setOnClickListener {
-                mostrarListaSiguiendo()
-            }
+
         }
 
         dashboardViewModel.textoBoton.observe(viewLifecycleOwner) { textoBoton ->
@@ -289,7 +283,7 @@ class DashboardFragment : Fragment() {
             if (container.childCount > 1) {
                 val seguidoresLabel = container.getChildAt(1) as? TextView
                 seguidoresLabel?.setOnClickListener {
-                    mostrarListaSeguidores()
+
                 }
             }
         }
@@ -301,7 +295,7 @@ class DashboardFragment : Fragment() {
             if (container.childCount > 1) {
                 val siguiendoLabel = container.getChildAt(1) as? TextView
                 siguiendoLabel?.setOnClickListener {
-                    mostrarListaSiguiendo()
+
                 }
             }
         }
@@ -326,24 +320,9 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    // Funciones para mostrar listas de seguidores/siguiendo
-    private fun mostrarListaSeguidores() {
-        val userId = lastProcessedUserId ?: arguments?.getString("user_id")
-        if (userId != null) {
-            Log.d("DashboardFragment", "Mostrando lista de seguidores para: $userId")
-            // Puedes crear una nueva actividad o dialog para mostrar la lista
-            Toast.makeText(requireContext(), "Lista de seguidores (implementar)", Toast.LENGTH_SHORT).show()
-        }
-    }
 
-    private fun mostrarListaSiguiendo() {
-        val userId = lastProcessedUserId ?: arguments?.getString("user_id")
-        if (userId != null) {
-            Log.d("DashboardFragment", "Mostrando lista de siguiendo para: $userId")
-            // Puedes crear una nueva actividad o dialog para mostrar la lista
-            Toast.makeText(requireContext(), "Lista de siguiendo (implementar)", Toast.LENGTH_SHORT).show()
-        }
-    }
+
+
 
     private fun updateUIForConnectionState(isOnline: Boolean) {
         if (!isOnline && !(dashboardViewModel.isLoading.value ?: true)) {
