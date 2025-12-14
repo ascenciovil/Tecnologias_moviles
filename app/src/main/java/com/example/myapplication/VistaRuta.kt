@@ -118,6 +118,8 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             val i = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("destination", "rutas_fragment")
+                putExtra("force_reload_home", true)
+
             }
             startActivity(i)
             finish()

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -163,10 +164,19 @@ class MainActivity : AppCompatActivity() {
         isTemporaryProfile = false
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        val forceReloadHome = intent.getBooleanExtra("force_reload_home", false)
+        if (forceReloadHome) {
+            navController.popBackStack(R.id.navigation_home, true)
+            navController.navigate(R.id.navigation_rutas)
+            binding.navView.selectedItemId = R.id.navigation_rutas
+            val navView = findViewById<BottomNavigationView>(R.id.nav_view)
+            navView.visibility = View.VISIBLE
+            intent.removeExtra("force_reload_home")
+            return
+        }
         handleDeepLink(navController)
         handleHomeNavigationWithCoords(navController)
 
-        //por si llega un intent nuevo, también re-encolamos pendientes
         kickPendingUploads()
     }
 
