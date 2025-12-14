@@ -19,6 +19,8 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
+import android.location.Geocoder
+import java.util.Locale
 
 private const val CLOUDINARY_CLOUD_NAME = "dof4gj5pr"
 private const val CLOUDINARY_UPLOAD_PRESET = "rutas_fotos"
@@ -53,6 +55,15 @@ class UploadRouteWorker(
             } catch (_: Exception) {
                 emptyList()
             }
+
+            val region: String? = if (coords.isNotEmpty()) {
+                obtenerRegion(coords.first().latitude, coords.first().longitude)
+            } else null
+
+            val regionSafe = (region as? String)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "Región desconocida"
 
             // ✅ Parse fotos (sin errores de inferencia)
             val photoType = object : TypeToken<List<PendingPhoto>>() {}.type
@@ -103,6 +114,7 @@ class UploadRouteWorker(
                 "coordenadas" to coordList,
 
                 "visible" to true,
+                "region" to regionSafe,
 
                 "createdAt" to FieldValue.serverTimestamp()
             )
@@ -146,4 +158,23 @@ class UploadRouteWorker(
             null
         }
     }
+    private fun obtenerRegion(lat: Double, lng: Double): String? {
+        return try {
+            val geocoder = Geocoder(applicationContext, Locale.getDefault())
+            val results = geocoder.getFromLocation(lat, lng, 1)
+
+            if (!results.isNullOrEmpty()) {
+                val address = results[0]
+
+                listOfNotNull(
+                    address.locality,      // ciudad
+                    address.adminArea,     // estado / región
+                    address.countryName    // país
+                ).joinToString(", ")
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
 }

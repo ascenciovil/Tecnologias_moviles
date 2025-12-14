@@ -1,12 +1,14 @@
 package com.example.myapplication.ui.home
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.location.Geocoder
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
@@ -37,8 +39,10 @@ import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
 import java.util.Locale
+import com.google.android.material.button.MaterialButton
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
@@ -71,6 +75,15 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private var distanciaTotal = 0.0
     private var velocidadPromedio = 0.0
     private var tiempoInicio: Long = 0L
+
+    data class RutaMapa(
+        val id: String,
+        val nombre: String,
+        val descripcion: String,
+        val rating: Double,
+        val lat: Double,
+        val lng: Double
+    )
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -128,6 +141,21 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
+        googleMap.setOnMarkerClickListener { marker ->
+            val ruta = marker.tag as? RutaMapa
+                ?: return@setOnMarkerClickListener true
+
+            mostrarPopupRuta(
+                rutaId = ruta.id,
+                nombre = ruta.nombre,
+                descripcion = ruta.descripcion,
+                rating = ruta.rating
+            )
+            true
+        }
+
+
+
         val coords = arguments?.getParcelableArrayList<LatLng>("ruta_coords")
         val rutaId = arguments?.getString("ruta_id")
 
@@ -165,6 +193,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             arguments?.clear()
         } else {
             getCurrentLocation()
+            cargarMarcadoresRutasRegion()
         }
     }
 
@@ -181,8 +210,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             location?.let {
                 currentLocation = it
                 val point = LatLng(it.latitude, it.longitude)
-                mMap.addMarker(MarkerOptions().position(point).title("Mi ubicación"))
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(point, 15f))
+                guardarRegion(location)
             }
         }
     }
@@ -240,7 +269,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             priority = Priority.PRIORITY_HIGH_ACCURACY
         }
 
-        // ✅ Ahora pide permiso antes de abrir cámara
         binding.btnFoto.setOnClickListener { requestCameraAndOpen() }
 
         locationCallback = object : LocationCallback() {
@@ -453,6 +481,129 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         val distanciaMetros = locActual.distanceTo(locInicio)
         return distanciaMetros / 1000.0
     }
+
+    private fun guardarRegion(location: Location) {
+        val prefs = requireContext()
+            .getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+
+        try {
+            val geocoder = Geocoder(requireContext(), Locale.getDefault())
+            val result = geocoder.getFromLocation(
+                location.latitude,
+                location.longitude,
+                1
+            )
+
+            if (!result.isNullOrEmpty()) {
+                val addr = result[0]
+
+                val region = listOfNotNull(
+                    addr.locality,
+                    addr.adminArea,
+                    addr.countryName
+                ).joinToString(", ")
+
+                prefs.edit()
+                    .putString("user_region", region)
+                    .apply()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun obtenerRegionUsuario(): String? {
+        val prefs = requireContext()
+            .getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+
+        return prefs.getString("user_region", null)
+
+    }
+
+
+    private fun cargarMarcadoresRutasRegion() {
+        val regionUsuario = obtenerRegionUsuario() ?: return
+
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("Rutas")
+            .whereEqualTo("region", regionUsuario)
+            .whereEqualTo("visible", true)
+            .get()
+            .addOnSuccessListener { result ->
+
+                var rutasCercanas = 0
+
+                for (doc in result.documents) {
+
+                    val nombre = doc.getString("nombre") ?: continue
+                    val descripcion = doc.getString("descripcion") ?: ""
+                    val rating = (doc.get("rating") as? Number)?.toDouble() ?: 0.0
+
+                    val coords = doc.get("coordenadas") as? List<Map<String, Any>>
+                    if (coords.isNullOrEmpty()) continue
+
+                    val first = coords.first()
+                    val lat = first["latitude"] as? Double ?: continue
+                    val lng = first["longitude"] as? Double ?: continue
+
+                    val ruta = RutaMapa(
+                        id = doc.id,
+                        nombre = nombre,
+                        descripcion = descripcion,
+                        rating = rating,
+                        lat = lat,
+                        lng = lng
+                    )
+
+                    agregarMarcadorRuta(ruta)
+
+                    rutasCercanas++
+                }
+                if (rutasCercanas == 0) {
+                    Toast.makeText(
+                        requireContext(),
+                        "No se encontraron rutas cercanas a tu región",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+    }
+
+    private fun agregarMarcadorRuta(ruta: RutaMapa) {
+        val marker = mMap.addMarker(
+            MarkerOptions()
+                .position(LatLng(ruta.lat, ruta.lng))
+                .title(ruta.nombre)
+                .snippet("${ruta.descripcion}\n⭐ ${ruta.rating}")
+        )
+
+        marker?.tag = ruta
+    }
+
+    private fun mostrarPopupRuta(
+        rutaId: String,
+        nombre: String,
+        descripcion: String,
+        rating: Double
+    ) {
+        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(requireContext())
+        val view = layoutInflater.inflate(R.layout.bottomsheet_ruta, null)
+
+        view.findViewById<TextView>(R.id.tvNombre).text = nombre
+        view.findViewById<TextView>(R.id.tvDescripcion).text = descripcion
+        view.findViewById<TextView>(R.id.tvRating).text = "⭐ ${String.format("%.1f", rating)}"
+
+        view.findViewById<MaterialButton>(R.id.btnVerMas).setOnClickListener {
+            val intent = Intent(requireContext(), VistaRuta::class.java)
+            intent.putExtra("ruta_id", rutaId)
+            startActivity(intent)
+            dialog.dismiss()
+        }
+
+        dialog.setContentView(view)
+        dialog.show()
+    }
+
 
     override fun onDestroyView() {
         super.onDestroyView()

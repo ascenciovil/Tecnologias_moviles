@@ -25,6 +25,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import android.location.Geocoder
+import java.util.Locale
 
 class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -195,6 +197,13 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
 
+            val region = if (coordenadas.isNotEmpty()) {
+                obtenerRegion(
+                    coordenadas.first().latitude,
+                    coordenadas.first().longitude
+                )
+            } else null
+
             val gson = Gson()
             val entity = PendingRouteEntity(
                 userId = userId,
@@ -202,7 +211,8 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
                 descripcion = descripcion,
                 coordenadasJson = gson.toJson(coords),
                 fotosJson = gson.toJson(photos),
-                status = "PENDING"
+                status = "PENDING",
+                region = region
             )
 
             withContext(Dispatchers.IO) {
@@ -223,6 +233,28 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+
+    private suspend fun obtenerRegion(lat: Double, lng: Double): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val geocoder = Geocoder(this@SubirRutaActivity, Locale.getDefault())
+                val results = geocoder.getFromLocation(lat, lng, 1)
+
+                if (!results.isNullOrEmpty()) {
+                    val address = results[0]
+
+                    val ciudad = address.locality
+                    val estado = address.adminArea
+                    val pais = address.countryName
+
+                    listOfNotNull(ciudad, estado, pais).joinToString(", ")
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
     private fun volverAMain() {
         val intent = Intent(this, MainActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
