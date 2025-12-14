@@ -53,7 +53,7 @@ class DashboardFragment : Fragment() {
             forceReload = args.getBoolean("force_reload", false)
             fromDeepLink = args.getBoolean("from_deep_link", false)
 
-            Log.d("DashboardFragment", "📦 Argumentos recibidos:")
+            Log.d("DashboardFragment", " Argumentos recibidos:")
             Log.d("DashboardFragment", "  - userId: '$userId'")
             Log.d("DashboardFragment", "  - userName: '$userName'")
             Log.d("DashboardFragment", "  - forceReload: $forceReload")
@@ -83,22 +83,22 @@ class DashboardFragment : Fragment() {
 
         // Si forceReload es true, forzar recarga
         if (forceReload) {
-            Log.d("DashboardFragment", "🔁 Forzando recarga...")
+            Log.d("DashboardFragment", " Forzando recarga...")
             lastProcessedUserId = null
         }
 
         // Verificar si necesitamos cargar un nuevo usuario
         val shouldLoadNewUser = when {
             userId == null || userId.isEmpty() -> {
-                Log.d("DashboardFragment", "⚠️ No hay userId, cargando perfil por defecto")
+                Log.d("DashboardFragment", " No hay userId, cargando perfil por defecto")
                 false
             }
             userId != lastProcessedUserId -> {
-                Log.d("DashboardFragment", "🔄 Nuevo usuario detectado: $userId (anterior: $lastProcessedUserId)")
+                Log.d("DashboardFragment", " Nuevo usuario detectado: $userId (anterior: $lastProcessedUserId)")
                 true
             }
             else -> {
-                Log.d("DashboardFragment", "✅ Mismo usuario, manteniendo datos actuales")
+                Log.d("DashboardFragment", " Mismo usuario, manteniendo datos actuales")
                 false
             }
         }
@@ -124,7 +124,7 @@ class DashboardFragment : Fragment() {
     }
 
     private fun cargarDatosUsuario(userId: String, userName: String?) {
-        Log.d("DashboardFragment", "🚀 Inicializando ViewModel con userId: $userId")
+        Log.d("DashboardFragment", " Inicializando ViewModel con userId: $userId")
 
         // Inicializar ViewModel con el userId
         dashboardViewModel.init(userId)
@@ -143,7 +143,7 @@ class DashboardFragment : Fragment() {
     }
 
     private fun cargarDatosPorDefecto() {
-        Log.d("DashboardFragment", "📋 Cargando datos por defecto")
+        Log.d("DashboardFragment", " Cargando datos por defecto")
         dashboardViewModel.cargarDatosPorDefecto()
 
         // Si es el perfil por defecto, ocultar botón de seguir
@@ -450,7 +450,6 @@ class DashboardFragment : Fragment() {
                 }
 
                 filaSuperior.addView(tituloTextView)
-                filaSuperior.addView(duracionTextView)
                 rutaCard.addView(filaSuperior)
 
                 // Descripción
@@ -489,7 +488,7 @@ class DashboardFragment : Fragment() {
                 // Indicador de datos en cache
                 if (dashboardViewModel.isOnline.value == false) {
                     val cacheIndicator = TextView(requireContext()).apply {
-                        text = "📱 Datos en cache"
+                        text = " Datos en cache"
                         textSize = 12f
                         setTextColor(0xFF888888.toInt())
                         setPadding(0, 8.dpToPx(), 0, 0)

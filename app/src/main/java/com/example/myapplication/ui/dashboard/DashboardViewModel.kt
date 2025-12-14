@@ -191,13 +191,13 @@ class DashboardViewModel : ViewModel() {
             db.collection("Usuarios").document(userId)
                 .update(updates)
                 .addOnSuccessListener {
-                    Log.d("DashboardViewModel", "✅ Contadores inicializados para: $userId")
+                    Log.d("DashboardViewModel", " Contadores inicializados para: $userId")
                 }
                 .addOnFailureListener { e ->
-                    Log.e("DashboardViewModel", "❌ Error al inicializar contadores: ${e.message}")
+                    Log.e("DashboardViewModel", " Error al inicializar contadores: ${e.message}")
                 }
         } else {
-            Log.d("DashboardViewModel", "✅ Contadores ya existen para usuario: $userId")
+            Log.d("DashboardViewModel", " Contadores ya existen para usuario: $userId")
         }
     }
 
@@ -326,7 +326,7 @@ class DashboardViewModel : ViewModel() {
         Log.d("DashboardViewModel", "targetUserId: $targetUserId")
 
         if (currentUserId == targetUserId) {
-            Log.d("DashboardViewModel", "⚠️ No puedes seguirte a ti mismo")
+            Log.d("DashboardViewModel", " No puedes seguirte a ti mismo")
             return
         }
 
@@ -342,7 +342,7 @@ class DashboardViewModel : ViewModel() {
     }
 
     private fun seguirUsuario(currentUserId: String, targetUserId: String) {
-        Log.d("DashboardViewModel", "❤️ Siguiendo usuario (bidireccional)...")
+        Log.d("DashboardViewModel", " Siguiendo usuario (bidireccional)...")
 
         val timestamp = System.currentTimeMillis()
 
@@ -384,7 +384,7 @@ class DashboardViewModel : ViewModel() {
 
                         batch.commit()
                             .addOnSuccessListener {
-                                Log.d("DashboardViewModel", "✅ Seguido exitosamente (ambas partes)")
+                                Log.d("DashboardViewModel", " Seguido exitosamente (ambas partes)")
 
                                 // Actualizar contadores
                                 actualizarContadores(currentUserId, targetUserId, true)
@@ -394,23 +394,23 @@ class DashboardViewModel : ViewModel() {
                                 actualizarTextoBoton()
                             }
                             .addOnFailureListener { e ->
-                                Log.e("DashboardViewModel", "❌ Error al seguir: ${e.message}")
+                                Log.e("DashboardViewModel", " Error al seguir: ${e.message}")
                                 _error.value = "Error al seguir usuario: ${e.message}"
                             }
                     }
                     .addOnFailureListener { e ->
-                        Log.e("DashboardViewModel", "❌ Error al obtener datos del usuario objetivo: ${e.message}")
+                        Log.e("DashboardViewModel", " Error al obtener datos del usuario objetivo: ${e.message}")
                         _error.value = "Error al seguir usuario"
                     }
             }
             .addOnFailureListener { e ->
-                Log.e("DashboardViewModel", "❌ Error al obtener datos del usuario actual: ${e.message}")
+                Log.e("DashboardViewModel", " Error al obtener datos del usuario actual: ${e.message}")
                 _error.value = "Error al seguir usuario"
             }
     }
 
     private fun dejarDeSeguir(currentUserId: String, targetUserId: String) {
-        Log.d("DashboardViewModel", "🗑️ Dejando de seguir (bidireccional)...")
+        Log.d("DashboardViewModel", " Dejando de seguir (bidireccional)...")
 
         val batch = db.batch()
 
@@ -426,7 +426,7 @@ class DashboardViewModel : ViewModel() {
 
         batch.commit()
             .addOnSuccessListener {
-                Log.d("DashboardViewModel", "✅ Dejado de seguir exitosamente (ambas partes)")
+                Log.d("DashboardViewModel", " Dejado de seguir exitosamente (ambas partes)")
 
                 // Actualizar contadores
                 actualizarContadores(currentUserId, targetUserId, false)
@@ -436,7 +436,7 @@ class DashboardViewModel : ViewModel() {
                 actualizarTextoBoton()
             }
             .addOnFailureListener { e ->
-                Log.e("DashboardViewModel", "❌ Error al dejar de seguir: ${e.message}")
+                Log.e("DashboardViewModel", " Error al dejar de seguir: ${e.message}")
                 _error.value = "Error al dejar de seguir: ${e.message}"
             }
     }

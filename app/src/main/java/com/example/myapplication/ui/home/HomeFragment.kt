@@ -100,7 +100,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
 
-        // ✅ Launcher: tomar foto
+        //  Launcher: tomar foto
         takePictureLauncher = registerForActivityResult(
             ActivityResultContracts.TakePicture()
         ) { success ->
@@ -120,7 +120,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             }
         }
 
-        // ✅ Launcher: permiso cámara (evita crash)
+        //  Launcher: permiso cámara (evita crash)
         cameraPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (granted) {
@@ -426,7 +426,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }.start()
     }
 
-    // ✅ Foto persistente (externalFilesDir) + fallback
+    //  Foto persistente (externalFilesDir) + fallback
     private fun openCamera() {
         try {
             val dir = requireContext().getExternalFilesDir("pending_photos") ?: requireContext().cacheDir

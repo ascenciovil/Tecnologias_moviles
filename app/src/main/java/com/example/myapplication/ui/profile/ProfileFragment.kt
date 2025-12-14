@@ -134,27 +134,27 @@ class ProfileFragment : Fragment() {
             mostrarOpcionesFotoPerfil()
         }
 
-        // ✅ NUEVO: abrir pantalla de pendientes
+        // abrir pantalla de pendientes
         binding.cardPendingUploads.setOnClickListener {
             startActivity(Intent(requireContext(), PendingUploadsActivity::class.java))
         }
 
         profileViewModel.cargarDatosUsuario()
 
-        // ✅ NUEVO: cargar contador al entrar
+        // cargar contador al entrar
         refreshPendingCount()
     }
 
     override fun onResume() {
         super.onResume()
-        // ✅ refresca contador al volver desde PendingUploadsActivity
+        //  refresca contador al volver desde PendingUploadsActivity
         refreshPendingCount()
         // Verificar logros al volver a la pantalla
         profileViewModel.verificarLogrosPerfil()
         profileViewModel.verificarLogrosSociales()
     }
 
-    // ✅ NUEVO: contador de pendientes (PENDING/FAILED)
+    //  NUEVO: contador de pendientes (PENDING/FAILED)
     private fun refreshPendingCount() {
         lifecycleScope.launch {
             val count = withContext(Dispatchers.IO) {
@@ -167,7 +167,7 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // ✅ NUEVO: al reintentar conexión, también re-encolar subidas pendientes
+    // al reintentar conexión, también re-encolar subidas pendientes
     private fun enqueueAllPendingUploads() {
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching {
@@ -205,7 +205,7 @@ class ProfileFragment : Fragment() {
 
         profileViewModel.sincronizarDatos()
 
-        // ✅ NUEVO: reintenta también las subidas pendientes
+        //  reintenta también las subidas pendientes
         enqueueAllPendingUploads()
 
         binding.root.postDelayed({
@@ -430,7 +430,6 @@ class ProfileFragment : Fragment() {
                 }
 
                 filaSuperior.addView(tituloTextView)
-                filaSuperior.addView(duracionTextView)
                 rutaCard.addView(filaSuperior)
 
                 if (ruta.descripcion.isNotEmpty()) {
@@ -485,7 +484,7 @@ class ProfileFragment : Fragment() {
                 }
 
                 val botonOcultar = TextView(requireContext()).apply {
-                    text = "🗑️ Ocultar"
+                    text = "🗑️ Borrar"
                     textSize = 14f
                     setTextColor(0xFFF44336.toInt())
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -510,7 +509,7 @@ class ProfileFragment : Fragment() {
                 val isOnline = profileViewModel.isOnline.value ?: true
                 if (!isOnline) {
                     val cacheIndicator = TextView(requireContext()).apply {
-                        text = "📱 Datos en cache"
+                        text = " Datos en cache"
                         textSize = 12f
                         setTextColor(0xFF888888.toInt())
                         setPadding(0, 8.dpToPx(), 0, 0)
@@ -527,8 +526,7 @@ class ProfileFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Ocultar ruta")
             .setMessage(
-                "¿Estás seguro de que quieres ocultar la ruta '${ruta.titulo}'?\n\n" +
-                        "La ruta no se eliminará permanentemente, solo dejará de ser visible en tu perfil."
+                "¿Estás seguro de que quieres borrar la ruta '${ruta.titulo}'?\n\n"
             )
             .setPositiveButton("Ocultar") { _, _ ->
                 profileViewModel.ocultarRuta(ruta.id)

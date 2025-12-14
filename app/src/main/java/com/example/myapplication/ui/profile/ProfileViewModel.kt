@@ -287,7 +287,7 @@ class ProfileViewModel : ViewModel() {
             db.collection("Rutas").document(rutaId)
                 .update("visible", false)
                 .addOnSuccessListener {
-                    Log.d("ProfileViewModel", "✅ Ruta $rutaId ocultada exitosamente")
+                    Log.d("ProfileViewModel", " Ruta $rutaId ocultada exitosamente")
 
                     val rutasActuales = _rutasPublicadas.value ?: emptyList()
                     val nuevasRutas = rutasActuales.filter { it.id != rutaId }
@@ -495,7 +495,7 @@ class ProfileViewModel : ViewModel() {
 
         batch.commit()
             .addOnSuccessListener {
-                Log.d("ProfileViewModel", "✅ Logros faltantes creados: ${faltantes.size}")
+                Log.d("ProfileViewModel", " Logros faltantes creados: ${faltantes.size}")
 
                 // Combinar logros existentes con los nuevos
                 val todosLogros = logrosExistentes.toMutableList()
