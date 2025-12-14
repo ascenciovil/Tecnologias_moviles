@@ -43,6 +43,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
 import java.util.Locale
 import com.google.android.material.button.MaterialButton
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.annotation.DrawableRes
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import kotlin.math.roundToInt
+
+
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
@@ -570,15 +578,24 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     }
 
     private fun agregarMarcadorRuta(ruta: RutaMapa) {
+        val icon = bitmapDescriptorFromDrawable(
+            requireContext(),
+            R.drawable.marker_nearby_route_walk,
+            42
+        )
+
         val marker = mMap.addMarker(
             MarkerOptions()
                 .position(LatLng(ruta.lat, ruta.lng))
                 .title(ruta.nombre)
                 .snippet("${ruta.descripcion}\n⭐ ${ruta.rating}")
+                .icon(icon)
+                .anchor(0.5f, 0.5f)
         )
 
         marker?.tag = ruta
     }
+
 
     private fun mostrarPopupRuta(
         rutaId: String,
@@ -603,6 +620,23 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         dialog.setContentView(view)
         dialog.show()
     }
+
+    private fun bitmapDescriptorFromDrawable(
+        context: Context,
+        @DrawableRes resId: Int,
+        sizeDp: Int
+    ): BitmapDescriptor {
+        val drawable = ContextCompat.getDrawable(context, resId)!!
+        val sizePx = (sizeDp * context.resources.displayMetrics.density).roundToInt()
+
+        drawable.setBounds(0, 0, sizePx, sizePx)
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.draw(canvas)
+
+        return BitmapDescriptorFactory.fromBitmap(bitmap)
+    }
+
 
 
     override fun onDestroyView() {
