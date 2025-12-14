@@ -45,13 +45,13 @@ class PendingUploadsActivity : AppCompatActivity() {
         adapter = PendingUploadsAdapter(
             onRetry = { pendingId ->
                 UploadScheduler.enqueue(this, pendingId)
-                Toast.makeText(this, "Reintento encolado ✅", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Reintento encolado ", Toast.LENGTH_SHORT).show()
                 loadPending()
             },
             onDelete = { pendingId ->
                 lifecycleScope.launch {
                     val ok = deletePendingAndFiles(pendingId)
-                    if (ok) Toast.makeText(this@PendingUploadsActivity, "Eliminado ✅", Toast.LENGTH_SHORT).show()
+                    if (ok) Toast.makeText(this@PendingUploadsActivity, "Eliminado ", Toast.LENGTH_SHORT).show()
                     else Toast.makeText(this@PendingUploadsActivity, "No se pudo eliminar", Toast.LENGTH_SHORT).show()
                     loadPending()
                 }

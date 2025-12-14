@@ -47,7 +47,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     private val pickImageLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let {
-                // ✅ Offline pro: copiamos a almacenamiento propio (path real)
+                //  copia a almacenamiento propio (path real)
                 lifecycleScope.launch {
                     val localPath = withContext(Dispatchers.IO) { copyToPendingPhotos(it) }
                     fotosConCoord.add(
@@ -76,7 +76,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
         subirBtn = findViewById(R.id.subirRuta)
         cancelarBtn = findViewById(R.id.cancelar)
 
-        // ✅ Coordenadas: soporta Parcelable (ideal) y fallback Serializable (por cómo lo mandas hoy)
+        // soporta Parcelable (ideal) y fallback Serializable
         coordenadas = intent.getParcelableArrayListExtra("coordenadas")
             ?: (intent.getSerializableExtra("coordenadas") as? ArrayList<LatLng> ?: arrayListOf())
 
@@ -132,7 +132,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
             val model: Any = when {
                 foto.uri.startsWith("http") -> foto.uri
                 foto.uri.startsWith("content://") || foto.uri.startsWith("file://") -> Uri.parse(foto.uri)
-                else -> File(foto.uri) // ✅ path local
+                else -> File(foto.uri) //  path local
             }
 
             Glide.with(this).load(model).into(imageView)
@@ -170,7 +170,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     // ------------------------------------
-    // OFFLINE PRO: Guardar en Room + Encolar Worker
+    // Guardar en Room + Encolar Worker
     // ------------------------------------
     private fun guardarPendienteYEncolar() {
         val nombre = nombreRuta.text.toString().trim()
@@ -231,7 +231,7 @@ class SubirRutaActivity : AppCompatActivity(), OnMapReadyCallback {
 
             Toast.makeText(
                 this@SubirRutaActivity,
-                "Ruta guardada. Se subirá automáticamente cuando haya Internet ✅",
+                "Ruta guardada. Se subirá automáticamente cuando haya Internet ",
                 Toast.LENGTH_LONG
             ).show()
 

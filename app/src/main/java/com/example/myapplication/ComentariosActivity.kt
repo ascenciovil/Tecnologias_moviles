@@ -217,7 +217,7 @@ class ComentariosActivity : AppCompatActivity() {
             holder.tvTexto.text = c.texto
             holder.tvFecha.text = c.fecha?.let { sdf.format(it) } ?: ""
 
-            // ✅ Ir al perfil al tocar nombre / foto / inicial
+            //  Ir al perfil al tocar nombre / foto / inicial
             holder.tvAutor.setOnClickListener {
                 if (c.idUsuario.isNotBlank()) onUserClick(c.idUsuario, c.nombreUsuario)
             }

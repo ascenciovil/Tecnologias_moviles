@@ -113,7 +113,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         // Registrar exploración de ruta para logros
         registrarExploracionRuta()
 
-        // ✅ Back: volver a lista de rutas (no al mapa/home)
+        //  volver a lista de rutas (no al mapa/home)
         toolbar.setNavigationOnClickListener {
             val i = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -334,7 +334,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(inicio, 17f))
         }
 
-        // ✅ Fotos SOLO "ruta" con ícono de cámara
+        // Fotos SOLO "ruta" con ícono de cámara
         val cameraIcon = bitmapDescriptorFromVector(R.drawable.marker_camera)
 
         imagenesRuta

@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
             // Marcar que ya no es el primer inicio
             prefs.edit().putBoolean("first_launch", false).apply()
 
-            Log.d("MainActivity", "✅ Es el primer inicio de la app")
+            Log.d("MainActivity", " Es el primer inicio de la app")
 
             // El logro "Bienvenido" se desbloqueará automáticamente cuando el usuario
             // cargue su perfil por primera vez en ProfileViewModel
@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
         handleDeepLink(navController)
         handleHomeNavigationWithCoords(navController)
 
-        // ✅ OFFLINE PRO: por si llega un intent nuevo, también re-encolamos pendientes
+        //por si llega un intent nuevo, también re-encolamos pendientes
         kickPendingUploads()
     }
 
@@ -180,7 +180,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "destination: $destination")
 
         if (destination == "dashboard_fragment" && userId != null && userId.isNotEmpty()) {
-            Log.d("MainActivity", "🚀 Procesando navegación al perfil de: $userId")
+            Log.d("MainActivity", " Procesando navegación al perfil de: $userId")
 
             try {
                 binding.root.post {
@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity() {
             navController.popBackStack(R.id.navigation_rutas, false)
             isTemporaryProfile = false
             supportActionBar?.setDisplayHomeAsUpEnabled(false)
-            Log.d("MainActivity", "🔙 Saliendo de perfil temporal")
+            Log.d("MainActivity", " Saliendo de perfil temporal")
         }
     }
 
