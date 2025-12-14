@@ -17,6 +17,8 @@
     <string name="tu_descripcion_personal">Esta es tu descripción personal. Puedes editarla para contar más sobre ti.</string>
     <string name="mis_rutas_publicadas">Mis rutas publicadas</string>
     <string name="aun_no_rutas">No tienes ninguna ruta publicada</string>
+    <string name="profile_image">Foto de perfil</string>
+
 
     <!-- Strings para el diálogo de edición -->
     <string name="nombre_usuario">Nombre de usuario</string>
@@ -26,4 +28,5 @@
     <string name="guardar">Guardar</string>
     <string name="cancelar">Cancelar</string>
     <string name="editar_perfil">Editar Perfil</string>
+
 </resources>
