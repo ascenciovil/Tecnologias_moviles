@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [PendingRouteEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class PendingUploadDatabase : RoomDatabase() {
@@ -23,7 +23,10 @@ abstract class PendingUploadDatabase : RoomDatabase() {
                     context.applicationContext,
                     PendingUploadDatabase::class.java,
                     "pending_uploads.db"
-                ).build().also { INSTANCE = it }
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { INSTANCE = it }
             }
         }
     }

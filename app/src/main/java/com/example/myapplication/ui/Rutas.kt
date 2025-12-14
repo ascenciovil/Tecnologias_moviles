@@ -1,6 +1,8 @@
 package com.example.myapplication.ui
 
+import android.content.Context
 import android.content.Intent
+import android.location.Geocoder
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,27 +16,31 @@ import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.google.android.material.card.MaterialCardView
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
+import java.util.Locale
 
 class RutasFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private val db = FirebaseFirestore.getInstance()
-    private val rutasList = mutableListOf<Ruta>()
     private lateinit var adapter: RutasAdapter
+    private val rutasList = mutableListOf<Ruta>()
+    private val db = FirebaseFirestore.getInstance()
+
+    private var regionUsuario: String? = null
 
     data class Ruta(
         val nombre: String = "",
         val autor: String = "",
         val autorId: String = "",
         val rating: Double = 0.0,
-        val idRuta: String = ""
+        val idRuta: String = "",
+        val region: String = ""
     )
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         val view = inflater.inflate(R.layout.fragment_rutas, container, false)
 
         recyclerView = view.findViewById(R.id.recycler_rutas)
@@ -46,103 +52,113 @@ class RutasFragment : Fragment() {
             intent.putExtra("autor_id", ruta.autorId)
             startActivity(intent)
         }
+
         recyclerView.adapter = adapter
 
+        regionUsuario = obtenerRegionUsuario(requireContext())
+
         cargarRutas()
+
         return view
     }
 
+    private fun obtenerRegionUsuario(context: Context): String? {
+        val prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("user_region", null)
+            ?.lowercase()
+            ?.trim()
+    }
+
+
+
     private fun cargarRutas() {
         db.collection("Rutas")
-            .orderBy("rating", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .get()
             .addOnSuccessListener { result ->
 
-                android.util.Log.d("RUTAS_UI", "docs=${result.size()}")
-
                 rutasList.clear()
-                val docs = result.documents
 
-                // filtramos visible en memoria:
-                val visibles = docs.filter { doc ->
-                    val v = doc.getBoolean("visible")
-                    v != false // ✅ si es null (no existe) lo consideramos visible
-                }
+                val sameRegion = mutableListOf<Ruta>()
+                val otherRegion = mutableListOf<Ruta>()
 
-                val total = visibles.size
-                var completados = 0
+                val regionUsuarioNorm = regionUsuario
 
-                if (total == 0) {
-                    adapter.notifyDataSetChanged()
-                    return@addOnSuccessListener
-                }
+                for (doc in result.documents) {
 
-                for (doc in visibles) {
+                    // visible
+                    val visible = doc.getBoolean("visible") != false
+                    if (!visible) continue
+
                     val nombre = doc.getString("nombre") ?: "Sin nombre"
-                    val ratingNumber = doc.get("rating") as? Number
-                    val rating = ratingNumber?.toDouble() ?: 0.0
-                    val idUsuario = doc.getString("userId") ?: ""
+                    val rating = (doc.get("rating") as? Number)?.toDouble() ?: 0.0
+                    val autorId = doc.getString("userId") ?: ""
                     val idRuta = doc.id
+                    val regionRuta = normalizarRegion(doc.getString("region") ?: "")
 
-                    if (idUsuario.isNotEmpty()) {
-                        db.collection("Usuarios").document(idUsuario).get()
-                            .addOnSuccessListener { userDoc ->
-                                val autor = userDoc.getString("nombre_usuario") ?: "Desconocido"
-                                rutasList.add(
-                                    Ruta(
-                                        nombre = nombre,
-                                        autor = autor,
-                                        autorId = idUsuario,
-                                        rating = rating,
-                                        idRuta = idRuta
-                                    )
-                                )
-                                completados++
-                                if (completados == total) {
-                                    // ya viene ordenado por rating, pero lo mantenemos por seguridad
-                                    rutasList.sortByDescending { it.rating }
-                                    adapter.notifyDataSetChanged()
-                                }
-                            }
-                            .addOnFailureListener {
-                                rutasList.add(
-                                    Ruta(
-                                        nombre = nombre,
-                                        autor = "Desconocido",
-                                        autorId = idUsuario,
-                                        rating = rating,
-                                        idRuta = idRuta
-                                    )
-                                )
-                                completados++
-                                if (completados == total) {
-                                    rutasList.sortByDescending { it.rating }
-                                    adapter.notifyDataSetChanged()
-                                }
-                            }
+                    val ruta = Ruta(
+                        nombre = nombre,
+                        autorId = autorId,
+                        rating = rating,
+                        idRuta = idRuta,
+                        region = regionRuta
+                    )
+
+                    if (regionUsuarioNorm != null && regionRuta == regionUsuarioNorm) {
+                        sameRegion.add(ruta)
                     } else {
-                        rutasList.add(
-                            Ruta(
-                                nombre = nombre,
-                                autor = "Desconocido",
-                                autorId = "",
-                                rating = rating,
-                                idRuta = idRuta
-                            )
-                        )
-                        completados++
-                        if (completados == total) {
-                            rutasList.sortByDescending { it.rating }
-                            adapter.notifyDataSetChanged()
-                        }
+                        otherRegion.add(ruta)
                     }
                 }
+
+                sameRegion.sortByDescending { it.rating }
+                otherRegion.sortByDescending { it.rating }
+
+                rutasList.addAll(sameRegion)
+                rutasList.addAll(otherRegion)
+
+                cargarAutores(rutasList)
             }
-            .addOnFailureListener { e ->
-                android.util.Log.e("RUTAS_UI", "Error al cargar rutas", e)
-                Toast.makeText(requireContext(), "Error al cargar rutas: ${e.message}", Toast.LENGTH_SHORT).show()
+            .addOnFailureListener {
+                Toast.makeText(
+                    requireContext(),
+                    "Error al cargar rutas",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
     }
+
+    private fun cargarAutores(rutas: List<Ruta>) {
+        var completados = 0
+
+        if (rutas.isEmpty()) {
+            adapter.notifyDataSetChanged()
+            return
+        }
+
+        rutas.forEachIndexed { index, ruta ->
+            if (ruta.autorId.isEmpty()) {
+                completados++
+                if (completados == rutas.size) adapter.notifyDataSetChanged()
+                return@forEachIndexed
+            }
+
+            db.collection("Usuarios").document(ruta.autorId).get()
+                .addOnSuccessListener { doc ->
+                    val autor = doc.getString("nombre_usuario") ?: "Desconocido"
+                    rutasList[index] = rutasList[index].copy(autor = autor)
+                    completados++
+                    if (completados == rutas.size) adapter.notifyDataSetChanged()
+                }
+                .addOnFailureListener {
+                    completados++
+                    if (completados == rutas.size) adapter.notifyDataSetChanged()
+                }
+        }
+    }
+
+
+    private fun normalizarRegion(region: String): String =
+        region.lowercase().trim()
 
 
     class RutasAdapter(
@@ -171,6 +187,6 @@ class RutasFragment : Fragment() {
             holder.card.setOnClickListener { onClick(ruta) }
         }
 
-        override fun getItemCount() = rutas.size
+        override fun getItemCount(): Int = rutas.size
     }
 }

@@ -13,5 +13,6 @@ data class PendingRouteEntity(
     val fotosJson: String,
     val status: String = "PENDING", // PENDING, UPLOADING, FAILED
     val createdAt: Long = System.currentTimeMillis(),
-    val lastError: String? = null
+    val lastError: String? = null,
+    val region: String? = null
 )
