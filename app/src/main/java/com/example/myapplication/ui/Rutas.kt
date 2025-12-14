@@ -2,11 +2,12 @@ package com.example.myapplication.ui
 
 import android.content.Context
 import android.content.Intent
-import android.location.Geocoder
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.widget.SearchView
+import androidx.core.widget.addTextChangedListener
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
@@ -16,15 +17,21 @@ import com.example.myapplication.R
 import com.example.myapplication.VistaRuta
 import com.google.android.material.card.MaterialCardView
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.Locale
+import com.google.android.material.textfield.TextInputEditText
+
 
 class RutasFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: RutasAdapter
-    private val rutasList = mutableListOf<Ruta>()
-    private val db = FirebaseFirestore.getInstance()
 
+    /** Lista visible (filtrada) */
+    private val rutasList = mutableListOf<Ruta>()
+
+    /** Lista completa original */
+    private val rutasOriginal = mutableListOf<Ruta>()
+
+    private val db = FirebaseFirestore.getInstance()
     private var regionUsuario: String? = null
 
     data class Ruta(
@@ -41,6 +48,7 @@ class RutasFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+
         val view = inflater.inflate(R.layout.fragment_rutas, container, false)
 
         recyclerView = view.findViewById(R.id.recycler_rutas)
@@ -55,6 +63,15 @@ class RutasFragment : Fragment() {
 
         recyclerView.adapter = adapter
 
+        val searchInput = view.findViewById<TextInputEditText>(R.id.search_rutas)
+
+        searchInput.addTextChangedListener {
+            filtrarRutas(it.toString())
+        }
+
+
+
+
         regionUsuario = obtenerRegionUsuario(requireContext())
 
         cargarRutas()
@@ -62,6 +79,7 @@ class RutasFragment : Fragment() {
         return view
     }
 
+    /** Región guardada en SharedPreferences */
     private fun obtenerRegionUsuario(context: Context): String? {
         val prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
         return prefs.getString("user_region", null)
@@ -69,31 +87,28 @@ class RutasFragment : Fragment() {
             ?.trim()
     }
 
-
-
+    /** Carga rutas desde Firestore */
     private fun cargarRutas() {
         db.collection("Rutas")
             .get()
             .addOnSuccessListener { result ->
 
+                rutasOriginal.clear()
                 rutasList.clear()
 
                 val sameRegion = mutableListOf<Ruta>()
                 val otherRegion = mutableListOf<Ruta>()
 
-                val regionUsuarioNorm = regionUsuario
-
                 for (doc in result.documents) {
 
-                    // visible
                     val visible = doc.getBoolean("visible") != false
                     if (!visible) continue
 
                     val nombre = doc.getString("nombre") ?: "Sin nombre"
                     val rating = (doc.get("rating") as? Number)?.toDouble() ?: 0.0
                     val autorId = doc.getString("userId") ?: ""
-                    val idRuta = doc.id
                     val regionRuta = normalizarRegion(doc.getString("region") ?: "")
+                    val idRuta = doc.id
 
                     val ruta = Ruta(
                         nombre = nombre,
@@ -103,7 +118,7 @@ class RutasFragment : Fragment() {
                         region = regionRuta
                     )
 
-                    if (regionUsuarioNorm != null && regionRuta == regionUsuarioNorm) {
+                    if (regionUsuario != null && regionRuta == regionUsuario) {
                         sameRegion.add(ruta)
                     } else {
                         otherRegion.add(ruta)
@@ -113,10 +128,12 @@ class RutasFragment : Fragment() {
                 sameRegion.sortByDescending { it.rating }
                 otherRegion.sortByDescending { it.rating }
 
-                rutasList.addAll(sameRegion)
-                rutasList.addAll(otherRegion)
+                rutasOriginal.addAll(sameRegion)
+                rutasOriginal.addAll(otherRegion)
 
-                cargarAutores(rutasList)
+                rutasList.addAll(rutasOriginal)
+
+                cargarAutores()
             }
             .addOnFailureListener {
                 Toast.makeText(
@@ -127,39 +144,66 @@ class RutasFragment : Fragment() {
             }
     }
 
-    private fun cargarAutores(rutas: List<Ruta>) {
+    /** Carga los nombres de los autores */
+    private fun cargarAutores() {
         var completados = 0
 
-        if (rutas.isEmpty()) {
+        if (rutasOriginal.isEmpty()) {
             adapter.notifyDataSetChanged()
             return
         }
 
-        rutas.forEachIndexed { index, ruta ->
+        rutasOriginal.forEachIndexed { index, ruta ->
             if (ruta.autorId.isEmpty()) {
                 completados++
-                if (completados == rutas.size) adapter.notifyDataSetChanged()
+                if (completados == rutasOriginal.size) adapter.notifyDataSetChanged()
                 return@forEachIndexed
             }
 
             db.collection("Usuarios").document(ruta.autorId).get()
                 .addOnSuccessListener { doc ->
                     val autor = doc.getString("nombre_usuario") ?: "Desconocido"
-                    rutasList[index] = rutasList[index].copy(autor = autor)
+                    rutasOriginal[index] = rutasOriginal[index].copy(autor = autor)
+
+                    // reflejar cambio si está visible
+                    rutasList.find { it.idRuta == ruta.idRuta }?.let { r ->
+                        val pos = rutasList.indexOf(r)
+                        rutasList[pos] = r.copy(autor = autor)
+                    }
+
                     completados++
-                    if (completados == rutas.size) adapter.notifyDataSetChanged()
+                    if (completados == rutasOriginal.size) adapter.notifyDataSetChanged()
                 }
                 .addOnFailureListener {
                     completados++
-                    if (completados == rutas.size) adapter.notifyDataSetChanged()
+                    if (completados == rutasOriginal.size) adapter.notifyDataSetChanged()
                 }
         }
     }
 
+    /** Filtra rutas por nombre o autor */
+    private fun filtrarRutas(texto: String?) {
+        rutasList.clear()
+
+        if (texto.isNullOrBlank()) {
+            rutasList.addAll(rutasOriginal)
+        } else {
+            val filtro = texto.lowercase().trim()
+            rutasList.addAll(
+                rutasOriginal.filter {
+                    it.nombre.lowercase().contains(filtro) ||
+                            it.autor.lowercase().contains(filtro)
+                }
+            )
+        }
+
+        adapter.notifyDataSetChanged()
+    }
 
     private fun normalizarRegion(region: String): String =
         region.lowercase().trim()
 
+    // ---------------- ADAPTER ----------------
 
     class RutasAdapter(
         private val rutas: List<Ruta>,
