@@ -396,8 +396,8 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         val km = totalMeters / 1000.0
         tvDistanceLabel.text = "Distancia de la ruta: ${String.format(Locale.getDefault(), "%.1f", km)} km"
 
-        // Tiempo estimado 
-        val velocidadKmh = 3.5
+        // Tiempo estimado
+        val velocidadKmh = 4.0
         val minutos = if (km <= 0.0) 0 else ceil((km / velocidadKmh) * 60.0).toInt()
 
         tvEstimated.text = "  •  ${formatearTiempo(minutos)}"
