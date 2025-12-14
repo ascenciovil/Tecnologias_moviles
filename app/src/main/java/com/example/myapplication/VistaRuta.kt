@@ -33,6 +33,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 import com.google.android.gms.maps.model.CircleOptions
+import kotlin.math.ceil
 
 
 class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
@@ -57,6 +58,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private var mapReady = false
     private var coordenadasRuta: List<LatLng> = emptyList()
     private var imagenesRuta: List<FotoConCoordenada> = emptyList()
+
+    private lateinit var tvEstimated: TextView
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,6 +91,9 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
         tvDistanceLabel = findViewById(R.id.tv_distance_label)
         tvAutorRuta = findViewById(R.id.tv_autor_ruta)
         tvRatingRuta = findViewById(R.id.tv_rating_ruta)
+        tvEstimated = findViewById(R.id.tv_estimated)
+
+
 
         // Obtener ID de la ruta
         rutaId = intent.getStringExtra("ruta_id")
@@ -367,6 +374,7 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
     private fun actualizarDistanciaLabel() {
         if (coordenadasRuta.size < 2) {
             tvDistanceLabel.text = "Distancia de la ruta no disponible"
+            tvEstimated.text = "  •  Tiempo no disponible"
             return
         }
 
@@ -384,10 +392,25 @@ class VistaRuta : AppCompatActivity(), OnMapReadyCallback {
             totalMeters += results[0]
         }
 
-        val km = totalMeters / 1000f
-        val kmRounded = String.format(Locale.getDefault(), "%.1f", km)
-        tvDistanceLabel.text = "Distancia de la ruta: $kmRounded km"
+        // Distancia
+        val km = totalMeters / 1000.0
+        tvDistanceLabel.text = "Distancia de la ruta: ${String.format(Locale.getDefault(), "%.1f", km)} km"
+
+        // Tiempo estimado 
+        val velocidadKmh = 3.5
+        val minutos = if (km <= 0.0) 0 else ceil((km / velocidadKmh) * 60.0).toInt()
+
+        tvEstimated.text = "  •  ${formatearTiempo(minutos)}"
     }
+
+    private fun formatearTiempo(mins: Int): String {
+        if (mins <= 1) return "1 minuto de caminata"
+        if (mins < 60) return "$mins minutos de caminata"
+        val h = mins / 60
+        val m = mins % 60
+        return if (m == 0) "${h}h de caminata" else "${h}h ${m}min de caminata"
+    }
+
 
     private fun mostrarPopup(popup: View, root: View) {
         root.alpha = 0.3f
