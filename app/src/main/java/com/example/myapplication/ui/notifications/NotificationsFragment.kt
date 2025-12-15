@@ -54,6 +54,7 @@ class NotificationsFragment : Fragment() {
 
         db.collection("Rutas")
             .whereEqualTo("userId", userId)
+            .whereEqualTo("visible", true)
             .get()
             .addOnSuccessListener { result ->
                 rutasUsuario.clear()
