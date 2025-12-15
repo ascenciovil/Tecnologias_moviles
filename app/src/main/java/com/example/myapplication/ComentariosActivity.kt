@@ -1,14 +1,19 @@
 package com.example.myapplication
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -50,24 +55,39 @@ class ComentariosActivity : AppCompatActivity() {
         etNuevoComentario = findViewById(R.id.et_nuevo_comentario)
         btnEnviar = findViewById(R.id.btn_enviar_comentario)
 
-        // Flecha de back (si tienes un drawable, puedes setearlo aquí)
-        toolbar.setNavigationOnClickListener {
-            onBackPressedDispatcher.onBackPressed()
-        }
+        toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
-        adapter = ComentariosAdapter()
+        adapter = ComentariosAdapter(
+            db = db,
+            currentUid = auth.currentUser?.uid,
+            onDelete = { comentario -> borrarComentario(comentario) },
+            onUserClick = { userId, userName -> navigateToUserProfile(userId, userName) }
+        )
+
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
         cargarNombreUsuario()
         escucharComentarios()
 
-        btnEnviar.setOnClickListener {
-            guardarComentario()
-        }
+        btnEnviar.setOnClickListener { guardarComentario() }
     }
 
-    // ───────────────────────── cargar nombre de usuario ─────────────────────────
+    // ==========================
+    // PERFIL
+    // ==========================
+    private fun navigateToUserProfile(userId: String, userName: String) {
+        val i = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("user_id", userId)
+            putExtra("user_name", userName)
+            putExtra("destination", "dashboard_fragment")
+            putExtra("force_reload", true)
+        }
+        startActivity(i)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+    }
+
     private fun cargarNombreUsuario() {
         val usuario = auth.currentUser ?: return
 
@@ -75,13 +95,11 @@ class ComentariosActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
-                    val nombre = doc.getString("nombre_usuario") ?: "Usuario"
-                    nombreUsuarioActual = nombre   // o "@$nombre" si quieres el arroba
+                    nombreUsuarioActual = doc.getString("nombre_usuario") ?: "Usuario"
                 }
             }
     }
 
-    // ───────────────────────── escuchar comentarios en tiempo real ─────────────
     private fun escucharComentarios() {
         db.collection("Rutas").document(rutaId)
             .collection("comentarios")
@@ -106,15 +124,11 @@ class ComentariosActivity : AppCompatActivity() {
             }
     }
 
-    // ───────────────────────── guardar nuevo comentario ────────────────────────
     private fun guardarComentario() {
         val texto = etNuevoComentario.text?.toString()?.trim()
-        if (texto.isNullOrEmpty()) {
-            return
-        }
+        if (texto.isNullOrEmpty()) return
 
-        val usuario = auth.currentUser
-        if (usuario == null) {
+        val usuario = auth.currentUser ?: run {
             Toast.makeText(this, "Debes iniciar sesión para comentar", Toast.LENGTH_SHORT).show()
             return
         }
@@ -129,15 +143,27 @@ class ComentariosActivity : AppCompatActivity() {
         db.collection("Rutas").document(rutaId)
             .collection("comentarios")
             .add(data)
-            .addOnSuccessListener {
-                etNuevoComentario.setText("")
-            }
+            .addOnSuccessListener { etNuevoComentario.setText("") }
             .addOnFailureListener {
                 Toast.makeText(this, "Error al guardar comentario", Toast.LENGTH_SHORT).show()
             }
     }
 
-    // ───────────────────────── modelo y adapter ────────────────────────────────
+    private fun borrarComentario(c: Comentario) {
+        val uid = auth.currentUser?.uid ?: return
+        if (c.idUsuario != uid) return // seguridad extra
+
+        db.collection("Rutas").document(rutaId)
+            .collection("comentarios").document(c.id)
+            .delete()
+            .addOnSuccessListener {
+                Toast.makeText(this, "Comentario eliminado", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
     data class Comentario(
         val id: String = "",
         val texto: String = "",
@@ -146,10 +172,18 @@ class ComentariosActivity : AppCompatActivity() {
         val fecha: Date? = null
     )
 
-    class ComentariosAdapter : RecyclerView.Adapter<ComentariosAdapter.ComentarioViewHolder>() {
+    class ComentariosAdapter(
+        private val db: FirebaseFirestore,
+        private val currentUid: String?,
+        private val onDelete: (Comentario) -> Unit,
+        private val onUserClick: (String, String) -> Unit
+    ) : RecyclerView.Adapter<ComentariosAdapter.ComentarioViewHolder>() {
 
         private val items = mutableListOf<Comentario>()
         private val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+
+        // Cache: uid -> url ("" significa “sin foto”)
+        private val fotoCache = mutableMapOf<String, String>()
 
         fun setItems(nuevos: List<Comentario>) {
             items.clear()
@@ -162,6 +196,11 @@ class ComentariosActivity : AppCompatActivity() {
             val tvFecha: TextView = view.findViewById(R.id.tv_fecha_comentario)
             val tvTexto: TextView = view.findViewById(R.id.tv_texto_comentario)
             val tvAvatar: TextView = view.findViewById(R.id.tv_avatar_comentario)
+
+            val ivProfile: ImageView = view.findViewById(R.id.iv_profile)
+            val btnDelete: ImageButton = view.findViewById(R.id.btn_delete_comment)
+
+            var boundUserId: String? = null
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ComentarioViewHolder {
@@ -172,12 +211,78 @@ class ComentariosActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: ComentarioViewHolder, position: Int) {
             val c = items[position]
+            holder.boundUserId = c.idUsuario
+
             holder.tvAutor.text = c.nombreUsuario
             holder.tvTexto.text = c.texto
             holder.tvFecha.text = c.fecha?.let { sdf.format(it) } ?: ""
 
+            //  Ir al perfil al tocar nombre / foto / inicial
+            holder.tvAutor.setOnClickListener {
+                if (c.idUsuario.isNotBlank()) onUserClick(c.idUsuario, c.nombreUsuario)
+            }
+            holder.ivProfile.setOnClickListener {
+                if (c.idUsuario.isNotBlank()) onUserClick(c.idUsuario, c.nombreUsuario)
+            }
+            holder.tvAvatar.setOnClickListener {
+                if (c.idUsuario.isNotBlank()) onUserClick(c.idUsuario, c.nombreUsuario)
+            }
+
+
+            val isMine = (c.idUsuario == currentUid)
+            holder.btnDelete.visibility = if (isMine) View.VISIBLE else View.GONE
+            holder.btnDelete.setOnClickListener {
+                AlertDialog.Builder(holder.itemView.context)
+                    .setTitle("Eliminar comentario")
+                    .setMessage("¿Quieres eliminar tu comentario?")
+                    .setPositiveButton("Eliminar") { _, _ -> onDelete(c) }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+
+            // Fallback inicial
             val inicial = c.nombreUsuario.firstOrNull()?.uppercaseChar() ?: '?'
             holder.tvAvatar.text = inicial.toString()
+
+            // Foto
+            val cached = fotoCache[c.idUsuario]
+            if (cached != null) {
+                pintarFoto(holder, cached)
+            } else {
+                holder.ivProfile.visibility = View.GONE
+                holder.tvAvatar.visibility = View.VISIBLE
+
+                db.collection("Usuarios").document(c.idUsuario)
+                    .get()
+                    .addOnSuccessListener { userDoc ->
+                        val url = (userDoc.getString("foto_perfil")
+                            ?: userDoc.getString("foto_perf")
+                            ?: "").trim()
+
+                        fotoCache[c.idUsuario] = url
+
+                        // evita reciclar mal
+                        if (holder.boundUserId == c.idUsuario) {
+                            pintarFoto(holder, url)
+                        }
+                    }
+                    .addOnFailureListener {
+                        fotoCache[c.idUsuario] = ""
+                    }
+            }
+        }
+
+        private fun pintarFoto(holder: ComentarioViewHolder, url: String) {
+            val hasPhoto = url.isNotBlank()
+            holder.ivProfile.visibility = if (hasPhoto) View.VISIBLE else View.GONE
+            holder.tvAvatar.visibility = if (hasPhoto) View.GONE else View.VISIBLE
+
+            if (hasPhoto) {
+                Glide.with(holder.itemView)
+                    .load(url)
+                    .circleCrop()
+                    .into(holder.ivProfile)
+            }
         }
 
         override fun getItemCount(): Int = items.size

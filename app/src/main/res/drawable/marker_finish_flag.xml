@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+
+    <!-- poste -->
+    <path
+        android:fillColor="#111111"
+        android:pathData="M16,6 L18,6 L18,30 L16,30 Z" />
+
+    <!-- bandera -->
+    <path
+        android:fillColor="#E53935"
+        android:pathData="M18,7 L30,10 L18,13 Z" />
+
+    <!-- base pequeña -->
+    <path
+        android:fillColor="#111111"
+        android:pathData="M13,30 L21,30 L21,32 L13,32 Z" />
+</vector>

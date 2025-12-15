@@ -17,17 +17,29 @@
         android:orientation="horizontal"
         android:padding="12dp">
 
+        <!-- FOTO PERFIL (se muestra si hay URL) -->
+        <ImageView
+            android:id="@+id/iv_profile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:contentDescription="@string/profile_image"
+            android:src="@drawable/ic_profile_placeholder" />
+
+        <!-- FALLBACK: inicial con fondo (se muestra si no hay foto) -->
         <TextView
             android:id="@+id/tv_avatar_comentario"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/bg_avatar_comentario"
             android:gravity="center"
             android:text="J"
             android:textColor="@android:color/white"
             android:textStyle="bold"
-            android:textSize="18sp"
-            android:layout_marginEnd="12dp" />
+            android:textSize="18sp" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -38,7 +50,8 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
                 <TextView
                     android:id="@+id/tv_autor_comentario"
@@ -55,7 +68,20 @@
                     android:layout_height="wrap_content"
                     android:text="24/11/2025 15:03"
                     android:textSize="11sp"
-                    android:textColor="#888888" />
+                    android:textColor="#888888"
+                    android:layout_marginStart="8dp" />
+
+                <!-- BORRAR (solo visible si el comentario es del usuario) -->
+                <ImageButton
+                    android:id="@+id/btn_delete_comment"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Eliminar comentario"
+                    android:src="@drawable/ic_delete"
+                    android:tint="#888888"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <TextView
@@ -66,7 +92,6 @@
                 android:text="TREMENDO"
                 android:textSize="14sp"
                 android:lineSpacingExtra="2dp" />
-
         </LinearLayout>
 
     </LinearLayout>
