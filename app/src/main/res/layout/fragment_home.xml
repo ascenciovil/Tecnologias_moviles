@@ -42,6 +42,26 @@
             android:layout_height="24dp" />
     </LinearLayout>
 
+    <!--Badge estado podómetro -->
+    <TextView
+        android:id="@+id/tvPedometerBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="20dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:text="Podómetro: —"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:background="@drawable/bg_pedometer_badge"
+        android:elevation="6dp"
+        android:visibility="gone" />
+
+
     <!-- Botón flotante -->
     <LinearLayout
         android:layout_width="wrap_content"
@@ -80,7 +100,6 @@
             android:visibility="gone"/>
     </LinearLayout>
 
-
     <LinearLayout
         android:id="@+id/dataLayout"
         android:layout_width="match_parent"
@@ -91,7 +110,6 @@
         android:background="@color/purple_500"
         android:visibility="gone">
 
-        <!-- Pasos -->
         <TextView
             android:id="@+id/pasosText"
             android:layout_width="wrap_content"
@@ -113,7 +131,6 @@
             android:paddingTop="24dp"
             android:visibility="gone"/>
 
-        <!-- Distancia recorrida -->
         <TextView
             android:id="@+id/distanciaText"
             android:layout_width="wrap_content"
@@ -124,7 +141,6 @@
             android:paddingTop="16dp"
             android:visibility="gone"/>
 
-        <!-- Velocidad promedio -->
         <TextView
             android:id="@+id/velocidadText"
             android:layout_width="wrap_content"
@@ -135,7 +151,6 @@
             android:paddingTop="16dp"
             android:visibility="gone"/>
 
-        <!-- Botón de continuar -->
         <Button
             android:id="@+id/btnContinuar"
             android:layout_width="wrap_content"
@@ -146,8 +161,6 @@
             android:layout_marginTop="32dp"
             android:backgroundTint="@android:color/white"
             android:textColor="@color/purple_500" />
-
     </LinearLayout>
-
 
 </FrameLayout>

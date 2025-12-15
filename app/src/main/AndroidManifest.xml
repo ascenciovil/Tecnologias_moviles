@@ -8,7 +8,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Añadir permisos para fotos -->
+    <!-- Añadir permisos para pasos -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+
     <!-- Añadir permisos para fotos -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.CAMERA" />

@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -11,6 +13,7 @@ import android.hardware.SensorManager
 import android.location.Geocoder
 import android.location.Location
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -20,6 +23,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -34,23 +38,18 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
 import java.util.Locale
-import com.google.android.material.button.MaterialButton
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import androidx.annotation.DrawableRes
-import com.google.android.gms.maps.model.BitmapDescriptor
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlin.math.roundToInt
-
-
 
 class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
@@ -69,6 +68,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private lateinit var takePictureLauncher: ActivityResultLauncher<Uri>
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var activityRecognitionLauncher: ActivityResultLauncher<String>
 
     private var photoUri: Uri? = null
     private var photoFile: File? = null
@@ -76,13 +76,17 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     private val fotosTomadas = arrayListOf<FotoConCoordenada>()
     private var currentLocation: Location? = null
 
-    private val pasosTotales = 523
     private var pasosInicio = -1
     private var pasosActuales = 0
 
     private var distanciaTotal = 0.0
     private var velocidadPromedio = 0.0
     private var tiempoInicio: Long = 0L
+
+    // Estado podómetro
+    private var useRealSteps: Boolean = false
+    private var stepBaselineSet: Boolean = false
+    private var pedometerReadyToastShown: Boolean = false
 
     data class RutaMapa(
         val id: String,
@@ -100,33 +104,43 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
 
-        //  Launcher: tomar foto
         takePictureLauncher = registerForActivityResult(
             ActivityResultContracts.TakePicture()
         ) { success ->
             if (success && photoFile != null) {
                 val ubicacionActual = currentLocation
                 if (ubicacionActual != null) {
-                    val foto = FotoConCoordenada(
-                        uri = photoFile!!.absolutePath,
-                        lat = ubicacionActual.latitude,
-                        lng = ubicacionActual.longitude,
-                        origen = "ruta"
+                    fotosTomadas.add(
+                        FotoConCoordenada(
+                            uri = photoFile!!.absolutePath,
+                            lat = ubicacionActual.latitude,
+                            lng = ubicacionActual.longitude,
+                            origen = "ruta"
+                        )
                     )
-                    fotosTomadas.add(foto)
                 } else {
                     Toast.makeText(requireContext(), "No se pudo obtener ubicación para la foto", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        //  Launcher: permiso cámara (evita crash)
         cameraPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) openCamera()
+                else Toast.makeText(requireContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+            }
+
+        activityRecognitionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (!recording) return@registerForActivityResult
+
                 if (granted) {
-                    openCamera()
+                    useRealSteps = true
+                    startStepSensor()
+                    setPedometerBadge("🟢 Podómetro activado (esperando datos...)", true)
                 } else {
-                    Toast.makeText(requireContext(), "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+                    useRealSteps = false
+                    setPedometerBadge("⚠️ Sin permiso: pasos estimados", true)
                 }
             }
 
@@ -150,19 +164,10 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         mMap = googleMap
 
         googleMap.setOnMarkerClickListener { marker ->
-            val ruta = marker.tag as? RutaMapa
-                ?: return@setOnMarkerClickListener true
-
-            mostrarPopupRuta(
-                rutaId = ruta.id,
-                nombre = ruta.nombre,
-                descripcion = ruta.descripcion,
-                rating = ruta.rating
-            )
+            val ruta = marker.tag as? RutaMapa ?: return@setOnMarkerClickListener true
+            mostrarPopupRuta(ruta.id, ruta.nombre, ruta.descripcion, ruta.rating)
             true
         }
-
-
 
         val coords = arguments?.getParcelableArrayList<LatLng>("ruta_coords")
         val rutaId = arguments?.getString("ruta_id")
@@ -176,32 +181,37 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             }
 
             dibujarRuta(coords)
-            if (ActivityCompat.checkSelfPermission(
-                    requireContext(),
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED
+
+            if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
             ) {
-                ActivityCompat.requestPermissions(
-                    requireActivity(),
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    1
-                )
+                ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
                 return
             }
 
             mMap.isMyLocationEnabled = true
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                currentLocation = location
                 if (location != null) {
-                    currentLocation = location
                     val distancia = distanciaAInicioRuta(coords.first())
-                    val texto = String.format(Locale.US, "Distancia al inicio: %.2f km", distancia)
-                    Toast.makeText(requireContext(), texto, Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(),
+                        String.format(Locale.US, "Distancia al inicio: %.2f km", distancia),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
             arguments?.clear()
         } else {
             getCurrentLocation()
             cargarMarcadoresRutasRegion()
+        }
+    }
+
+    private fun setPedometerBadge(text: String, visible: Boolean) {
+        if (_binding == null) return
+        requireActivity().runOnUiThread {
+            binding.tvPedometerBadge.text = text
+            binding.tvPedometerBadge.visibility = if (visible) View.VISIBLE else View.GONE
         }
     }
 
@@ -230,7 +240,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                 val name = binding.searchInput.text.toString()
                 if (name.isNotEmpty()) {
                     try {
-                        val geo = android.location.Geocoder(requireContext(), Locale.getDefault())
+                        val geo = Geocoder(requireContext(), Locale.getDefault())
                         val list = geo.getFromLocationName(name, 1)
                         if (!list.isNullOrEmpty()) {
                             val latLng = LatLng(list[0].latitude, list[0].longitude)
@@ -240,8 +250,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                         } else {
                             Toast.makeText(requireContext(), "No se encontró la ubicación", Toast.LENGTH_SHORT).show()
                         }
-                    } catch (_: Exception) {
-                    }
+                    } catch (_: Exception) {}
                 }
                 true
             } else false
@@ -258,16 +267,50 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         rutaCoords.clear()
         fotosTomadas.clear()
 
+        distanciaTotal = 0.0
+        velocidadPromedio = 0.0
+        tiempoInicio = System.currentTimeMillis()
+
         pasosActuales = 0
         pasosInicio = -1
-        distanciaTotal = 0.0
-        tiempoInicio = System.currentTimeMillis()
+        useRealSteps = false
+        stepBaselineSet = false
+        pedometerReadyToastShown = false
 
         binding.btnRuta.text = "Detener ruta"
         Toast.makeText(requireContext(), "Grabando ruta...", Toast.LENGTH_SHORT).show()
 
-        startStepSensor()
+        setPedometerBadge("Podómetro: verificando...", true)
+
         startGpsTracking()
+        requestActivityPermissionAndStartSteps()
+    }
+
+    private fun requestActivityPermissionAndStartSteps() {
+        if (stepCounterSensor == null) {
+            useRealSteps = false
+            setPedometerBadge("⚠️ Sin podómetro: pasos estimados", true)
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val granted = ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.ACTIVITY_RECOGNITION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (granted) {
+                useRealSteps = true
+                startStepSensor()
+                setPedometerBadge("🟢 Podómetro activado (esperando datos...)", true)
+            } else {
+                activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+        } else {
+            useRealSteps = true
+            startStepSensor()
+            setPedometerBadge("🟢 Podómetro activado (esperando datos...)", true)
+        }
     }
 
     private fun startGpsTracking() {
@@ -335,20 +378,28 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     }
 
     private fun startStepSensor() {
-        if (stepCounterSensor == null) {
-            Toast.makeText(requireContext(), "Tu dispositivo no tiene sensor de pasos", Toast.LENGTH_SHORT).show()
-            return
-        }
         sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
         if (!recording) return
+        if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
 
-        if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-            if (pasosInicio == -1) pasosInicio = event.values[0].toInt()
-            pasosActuales = event.values[0].toInt() - pasosInicio
+        val value = event.values[0].toInt()
+
+        if (pasosInicio == -1) {
+            pasosInicio = value
+            stepBaselineSet = true
+
+            if (!pedometerReadyToastShown) {
+                pedometerReadyToastShown = true
+                setPedometerBadge("✅ Podómetro listo (contando pasos reales)", true)
+            }
+            return
         }
+
+        pasosActuales = value - pasosInicio
+        if (pasosActuales < 0) pasosActuales = 0
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -359,16 +410,24 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         sensorManager.unregisterListener(this)
 
         binding.btnRuta.text = "Empezar ruta"
+        setPedometerBadge("", false)
 
         if (rutaCoords.isEmpty()) {
             Toast.makeText(requireContext(), "No se registraron coordenadas", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val usarPasosReales = (useRealSteps && stepBaselineSet)
+
+        val pasosFinales = if (usarPasosReales) pasosActuales else estimarPasosPorDistancia(distanciaTotal)
+        val suffixPasos = if (usarPasosReales) " pasos" else " pasos (estimados)"
+
         binding.dataLayout.visibility = View.VISIBLE
         binding.btnRuta.visibility = View.GONE
 
-        animateNumberTextView(binding.pasosText, 0, pasosActuales, " pasos") {
+        requireActivity().runOnUiThread { binding.pasosText.visibility = View.VISIBLE }
+
+        animateNumberTextView(binding.pasosText, 0, pasosFinales, suffixPasos) {
             requireActivity().runOnUiThread { binding.distanciaText.visibility = View.VISIBLE }
             animateDecimalTextView(binding.distanciaText, distanciaTotal, " km") {
                 requireActivity().runOnUiThread { binding.velocidadText.visibility = View.VISIBLE }
@@ -376,7 +435,10 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                     requireActivity().runOnUiThread {
                         binding.resumenPasos.visibility = View.VISIBLE
                         binding.resumenPasos.text =
-                            "Resumen: Caminaste aproximadamente $pasosActuales pasos en total."
+                            if (usarPasosReales)
+                                "Resumen: Caminaste $pasosFinales pasos en total."
+                            else
+                                "Resumen: Caminaste aproximadamente $pasosFinales pasos (estimados por distancia)."
                     }
                 }
             }
@@ -388,6 +450,12 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             intent.putExtra("fotos", fotosTomadas)
             startActivity(intent)
         }
+    }
+
+    private fun estimarPasosPorDistancia(distKm: Double): Int {
+        val stepLengthMeters = 0.78
+        val meters = distKm * 1000.0
+        return (meters / stepLengthMeters).toInt().coerceAtLeast(0)
     }
 
     private fun animateNumberTextView(
@@ -426,7 +494,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         }.start()
     }
 
-    //  Foto persistente (externalFilesDir) + fallback
     private fun openCamera() {
         try {
             val dir = requireContext().getExternalFilesDir("pending_photos") ?: requireContext().cacheDir
@@ -441,9 +508,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                 imageFile
             )
 
-            photoUri?.let { uri ->
-                takePictureLauncher.launch(uri)
-            }
+            photoUri?.let { uri -> takePictureLauncher.launch(uri) }
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(requireContext(), "Error abriendo cámara: ${e.message}", Toast.LENGTH_LONG).show()
@@ -452,6 +517,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private fun dibujarRuta(coordenadas: List<LatLng>) {
         if (coordenadas.isEmpty()) return
+
         binding.searchBar.visibility = View.GONE
         binding.btnRuta.visibility = View.GONE
         val navView = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
@@ -468,9 +534,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             val boundsBuilder = LatLngBounds.Builder()
             latLngList.forEach { boundsBuilder.include(it) }
             val bounds = boundsBuilder.build()
-            val padding = 100
-            val cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding)
-            mMap.moveCamera(cameraUpdate)
+            mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100))
         } catch (_: IllegalStateException) {
             if (latLngList.isNotEmpty()) {
                 mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngList.first(), 17f))
@@ -480,57 +544,33 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
     private fun distanciaAInicioRuta(primerPunto: LatLng): Double {
         val locActual = currentLocation ?: return -1.0
-
         val locInicio = Location("").apply {
             latitude = primerPunto.latitude
             longitude = primerPunto.longitude
         }
-
-        val distanciaMetros = locActual.distanceTo(locInicio)
-        return distanciaMetros / 1000.0
+        return locActual.distanceTo(locInicio) / 1000.0
     }
 
     private fun guardarRegion(location: Location) {
-        val prefs = requireContext()
-            .getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
-
+        val prefs = requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
         try {
             val geocoder = Geocoder(requireContext(), Locale.getDefault())
-            val result = geocoder.getFromLocation(
-                location.latitude,
-                location.longitude,
-                1
-            )
-
+            val result = geocoder.getFromLocation(location.latitude, location.longitude, 1)
             if (!result.isNullOrEmpty()) {
                 val addr = result[0]
-
-                val region = listOfNotNull(
-                    addr.locality,
-                    addr.adminArea,
-                    addr.countryName
-                ).joinToString(", ")
-
-                prefs.edit()
-                    .putString("user_region", region)
-                    .apply()
+                val region = listOfNotNull(addr.locality, addr.adminArea, addr.countryName).joinToString(", ")
+                prefs.edit().putString("user_region", region).apply()
             }
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
     }
 
     private fun obtenerRegionUsuario(): String? {
-        val prefs = requireContext()
-            .getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
-
+        val prefs = requireContext().getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
         return prefs.getString("user_region", null)
-
     }
-
 
     private fun cargarMarcadoresRutasRegion() {
         val regionUsuario = obtenerRegionUsuario() ?: return
-
         val db = FirebaseFirestore.getInstance()
 
         db.collection("Rutas")
@@ -538,11 +578,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
             .whereEqualTo("visible", true)
             .get()
             .addOnSuccessListener { result ->
-
                 var rutasCercanas = 0
-
                 for (doc in result.documents) {
-
                     val nombre = doc.getString("nombre") ?: continue
                     val descripcion = doc.getString("descripcion") ?: ""
                     val rating = (doc.get("rating") as? Number)?.toDouble() ?: 0.0
@@ -554,35 +591,19 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
                     val lat = first["latitude"] as? Double ?: continue
                     val lng = first["longitude"] as? Double ?: continue
 
-                    val ruta = RutaMapa(
-                        id = doc.id,
-                        nombre = nombre,
-                        descripcion = descripcion,
-                        rating = rating,
-                        lat = lat,
-                        lng = lng
-                    )
-
+                    val ruta = RutaMapa(doc.id, nombre, descripcion, rating, lat, lng)
                     agregarMarcadorRuta(ruta)
-
                     rutasCercanas++
                 }
+
                 if (rutasCercanas == 0) {
-                    Toast.makeText(
-                        requireContext(),
-                        "No se encontraron rutas cercanas a tu región",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(requireContext(), "No se encontraron rutas cercanas a tu región", Toast.LENGTH_LONG).show()
                 }
             }
     }
 
     private fun agregarMarcadorRuta(ruta: RutaMapa) {
-        val icon = bitmapDescriptorFromDrawable(
-            requireContext(),
-            R.drawable.marker_nearby_route_walk,
-            42
-        )
+        val icon = bitmapDescriptorFromDrawable(requireContext(), R.drawable.marker_nearby_route_walk, 42)
 
         val marker = mMap.addMarker(
             MarkerOptions()
@@ -596,13 +617,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         marker?.tag = ruta
     }
 
-
-    private fun mostrarPopupRuta(
-        rutaId: String,
-        nombre: String,
-        descripcion: String,
-        rating: Double
-    ) {
+    private fun mostrarPopupRuta(rutaId: String, nombre: String, descripcion: String, rating: Double) {
         val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(requireContext())
         val view = layoutInflater.inflate(R.layout.bottomsheet_ruta, null)
 
@@ -636,8 +651,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
 
         return BitmapDescriptorFactory.fromBitmap(bitmap)
     }
-
-
 
     override fun onDestroyView() {
         super.onDestroyView()
