@@ -136,7 +136,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
 
         sensorManager = requireActivity().getSystemService(SensorManager::class.java)
-        stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
         binding.btnRuta.setOnClickListener {
             if (!recording) startRecording() else stopRecordingAndGoToSubirRuta()
@@ -345,9 +345,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
         if (!recording) return
 
-        if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-            if (pasosInicio == -1) pasosInicio = event.values[0].toInt()
-            pasosActuales = event.values[0].toInt() - pasosInicio
+        if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+            pasosActuales++
         }
     }
 
